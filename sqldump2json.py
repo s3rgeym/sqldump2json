@@ -205,9 +205,9 @@ class Tokenizer:
 
     def next_token(self) -> Token:
         # выглядит очень коряво, но мы не можем регулярками распарсить файл, тк тогда его нужно будет прочитать весь, а данная утилита нужна для парсинга гигабайтных-дампов
-        self.advance()
         self.token_lineno = self.lineno
         self.token_colno = self.colno
+        self.advance()
         # TODO: вынести в отдельные методы
         # >>> '' in 'abc'
         # True
@@ -398,7 +398,9 @@ class Parser:
         while True:
             # выглядит очень костыльно
             token = next(self.tokenizer_it, Tokenizer.TOKEN_EMPTY)
-            logging.debug("peek %s", token.type)
+            logging.debug(
+                "peek %s at %d:%d", token.type, token.lineno, token.colno
+            )
             if token.type in (TokenType.WHITE_SPACE, TokenType.COMMENT):
                 continue
             return token
