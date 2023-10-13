@@ -34,6 +34,6 @@ $ ./sqldump2json -i testdata/dump.sql | jq -r 'select(.table_name == "actor").va
 Also supports basic arifmetic expressions:
 
 ```bash
-$ echo 'insert into test (id, result) values (42, -2 + 2 * 2);' | sqldump2json
-{"table_name": "test", "values": {"id": 42, "result": 2}}
+$ echo 'insert into test (result) values (-2 + 2 * 2);' | sqldump2json
+{"table_name": "test", "values": {"result": 2}}
 ```
