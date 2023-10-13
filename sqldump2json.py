@@ -271,8 +271,13 @@ class Tokenizer:
             # TODO: конвертировать в bytes?
             return Token(TokenType.HEX_STRING, val)
         # числа
-        if self.ch.isnumeric():
+        if (
+            self.ch == TokenType.MINUS and self.next_ch.isnumeric()
+        ) or self.ch.isnumeric():
             val = self.ch
+            if self.ch == TokenType.MINUS:
+                self.advance()
+                val += self.ch
             while self.next_ch.isnumeric() or (
                 self.next_ch == self.PERIOD_CHAR and not self.PERIOD_CHAR in val
             ):
