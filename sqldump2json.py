@@ -185,7 +185,7 @@ class Tokenizer:
         c = self.fp.read(1)
         if c == self.NEWLINE_CHAR:
             self.lineno += 1
-            self.colno = 1
+            self.colno = 0
         elif c:
             self.colno += 1
         return c
