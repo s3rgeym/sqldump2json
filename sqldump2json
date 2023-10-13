@@ -524,7 +524,7 @@ class NameSpace(argparse.Namespace):
     debug: bool
 
 
-def _parse_args(argv: Sequence[str] | None = None) -> NameSpace:
+def _parse_args(argv: Sequence[str] | None) -> NameSpace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("-i", "--input", default="-", type=argparse.FileType())
     # parser.add_argument(
@@ -541,15 +541,15 @@ def _parse_args(argv: Sequence[str] | None = None) -> NameSpace:
     return args
 
 
-def main() -> None:
-    args = _parse_args()
+def main(argv: Sequence[str] | None = None) -> None:
+    args = _parse_args(argv)
     if args.debug:
         logging.basicConfig(level=logging.DEBUG)
     parser = Parser(tokenizer=Tokenizer(args.input))
     try:
         parser.parse()
     except KeyboardInterrupt:
-        print("bye", file=sys.stderr)
+        print("\nGood bye!", file=sys.stderr)
 
 
 if __name__ == "__main__":
