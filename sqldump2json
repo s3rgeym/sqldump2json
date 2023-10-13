@@ -162,10 +162,10 @@ class Tokenizer:
 
     def readch(self) -> str:
         c = self.fp.read(1)
-        if c in self.NEWLINE_CHAR:
+        if c == self.NEWLINE_CHAR:
             self.lineno += 1
             self.colno = 0
-        if c:
+        elif c:
             self.colno += 1
         return c
 
@@ -179,6 +179,8 @@ class Tokenizer:
     def next_token(self) -> Token:
         # выглядит очень коряво, но мы не можем регулярками распарсить файл, тк тогда его нужно будет прочитать весь, а данная утилита нужна для парсинга гигабайтных-дампов
         self.advance()
+        self.token_lineno = self.lineno
+        self.token_colno = self.colno
         # TODO: вынести в отдельные методы
         # >>> '' in 'abc'
         # True
@@ -314,6 +316,7 @@ class Tokenizer:
                     break
             return Token(TokenType.COMMENT, val)
         # символьные операторы
+        # их можно прочитать все, а потом разбить по регулярке
         # двойные
         if self.next_ch:
             key = self.ch + self.next_ch
@@ -357,7 +360,7 @@ class Tokenizer:
         self.lineno = 1
         self.next_ch = self.readch()
         while t := self.next_token():
-            t.colno, t.lineno = self.colno, self.lineno
+            t.colno, t.lineno = self.token_colno, self.token_lineno
             yield t
             if t.type == TokenType.EOF:
                 break
