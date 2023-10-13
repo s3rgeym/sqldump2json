@@ -452,7 +452,7 @@ class Parser:
                     {
                         # "statement": "insert",
                         "table_name": table_name,
-                        "items": dict(zip(column_names, values))
+                        "values": dict(zip(column_names, values))
                         if column_names
                         else values,
                     },
