@@ -8,7 +8,7 @@
       "name": "sqldump2json",
       "type": "python",
       "request": "launch",
-      "program": "sqldump2json",
+      "program": "sqldump2json.py",
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "justMyCode": true,

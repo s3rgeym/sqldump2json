@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "sqldump2json"
+version = "0.1.0"
+description = "Parse SQL Dumps to JSON Objects"
+authors = ["Sergey M"]
+license = "Free for Personal Use Only"
+readme = "README.md"
+repository = "https://github.com/s3rgeym/sqldump2json"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+sqldump2json = 'sqldump2json:main'
