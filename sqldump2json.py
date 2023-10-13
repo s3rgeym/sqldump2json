@@ -562,7 +562,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     try:
         parser.parse()
     except KeyboardInterrupt:
-        print("\nGood bye!", file=sys.stderr)
+        print("\nGoodbye!", file=sys.stderr)
 
 
 if __name__ == "__main__":
