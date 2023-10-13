@@ -64,6 +64,7 @@ class AutoName(str, Enum):
 class TokenType(AutoName):
     ALTER = auto()
     AND = auto()
+    ASSIGN = auto()
     BACKTICK_STRING = auto()
     BOOL = auto()
     COMMA = auto()
@@ -159,15 +160,41 @@ class Tokenizer:
     QUOTE_CHAR: ClassVar[str] = "'"
     SLASH_CHAR: ClassVar[str] = "/"
     TOKEN_EMPTY: ClassVar[Token] = Token(TokenType.EMPTY, "")
+    SYMBOL_OPERATORS: ClassVar[dict[str, TokenType]] = {
+        ":=": TokenType.ASSIGN,
+        "!=": TokenType.NE,
+        "<=": TokenType.LTE,
+        "<>": TokenType.NE,
+        ">=": TokenType.GTE,
+        "||": TokenType.CONCAT,
+        "-": TokenType.MINUS,  # substraction
+        ",": TokenType.COMMA,
+        ";": TokenType.SEMICOLON,
+        ".": TokenType.PERIOD,
+        "(": TokenType.LPAREN,
+        ")": TokenType.RPAREN,
+        "*": TokenType.MUL,
+        "/": TokenType.DIV,
+        "+": TokenType.PLUS,  # addition
+        "<": TokenType.LT,
+        "=": TokenType.EQ,
+        ">": TokenType.GT,
+    }
 
     def readch(self) -> str:
         c = self.fp.read(1)
         if c == self.NEWLINE_CHAR:
             self.lineno += 1
-            self.colno = 0
+            self.colno = 1
         elif c:
             self.colno += 1
         return c
+
+    # TODO: этот метод можно было бы использовать в других реализациях парсеров. В текущей есть ограничение, связанное с тем, что в пайпах нельзя сикать (можно использовать буфер, но мне лень переписывать).
+    def peekch(self, n: int = 1) -> str:
+        rv = self.fp.read(n)
+        self.fp.seek(self.fp.tell() - len(rv))
+        return rv
 
     def advance(self) -> None:
         self.prev_ch, self.ch, self.next_ch = (
@@ -238,7 +265,10 @@ class Tokenizer:
                 if self.next_ch == self.NEWLINE_CHAR:
                     self.advance()
             if len(val) == 2:
-                raise Error("invalid hex string")
+                raise Error(
+                    f"invalid hex string at line {self.token_lineno} and column {self.token_colno}"
+                )
+            # TODO: конвертировать в bytes?
             return Token(TokenType.HEX_STRING, val)
         # числа
         if self.ch.isnumeric():
@@ -309,6 +339,7 @@ class Tokenizer:
                 if not self.ch:
                     break
                 val += self.ch
+                # TODO: считает /*/ многострочным комментарием
                 if (
                     self.prev_ch == self.ASTERSISK_CHAR
                     and self.ch == self.SLASH_CHAR
@@ -316,41 +347,15 @@ class Tokenizer:
                     break
             return Token(TokenType.COMMENT, val)
         # символьные операторы
-        # их можно прочитать все, а потом разбить по регулярке
-        # двойные
-        if self.next_ch:
-            key = self.ch + self.next_ch
-            if token_type := {
-                "!=": TokenType.NE,
-                "<>": TokenType.NE,
-                ">=": TokenType.GTE,
-                "<=": TokenType.LTE,
-                "||": TokenType.CONCAT,
-            }.get(key):
+        for op, tt in self.SYMBOL_OPERATORS.items():
+            assert 2 >= len(op) > 0
+            if len(op) == 2:
+                if self.ch + self.next_ch != op:
+                    continue
                 self.advance()
-                return Token(token_type, key)
-        # одинарные
-        try:
-            return Token(
-                {
-                    "+": TokenType.PLUS,  # addition
-                    "-": TokenType.MINUS,  # substraction
-                    "*": TokenType.MUL,
-                    "/": TokenType.DIV,
-                    "=": TokenType.EQ,
-                    ">": TokenType.GT,
-                    "<": TokenType.LT,
-                    "(": TokenType.LPAREN,
-                    ")": TokenType.RPAREN,
-                    ".": TokenType.PERIOD,
-                    ",": TokenType.COMMA,
-                    ";": TokenType.SEMICOLON,
-                    "?": TokenType.QMARK,
-                }[self.ch],
-                self.ch,
-            )
-        except KeyError:
-            pass
+            elif op != self.ch:
+                continue
+            return Token(tt, op)
         raise UnexpectedChar(char=self.ch, lineno=self.lineno, colno=self.colno)
 
     def tokenize(self) -> Iterable[Token]:
