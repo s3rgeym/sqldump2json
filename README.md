@@ -19,6 +19,10 @@ $ sqldump2json -i testdata/dump.sql
 {"table_name": "actor", "values": [2, "NICK", "WAHLBERG", "2006-02-15 04:34:33"]}
 {"table_name": "actor", "values": [3, "ED", "CHASE", "2006-02-15 04:34:33"]}
 ...
+
+# as bonus supports basic arifmetic expressions
+$ echo 'insert into test (id, result) values (42, 2 * (2 + 2));' | sqldump2json
+{"table_name": "test", "values": {"id": 42, "result": 8}}
 ```
 
 Use [jq](https://github.com/jqlang/jq) to process JSON (sort, filter and etc):
