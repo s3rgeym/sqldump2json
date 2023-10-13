@@ -152,7 +152,7 @@ class Tokenizer:
     DOUBLE_QUOTE_CHAR: ClassVar[str] = '"'
     ESCAPE_CHAR: ClassVar[str] = "\\"
     HEX_CHAR: ClassVar[str] = string.hexdigits
-    HYPHEN_CHAR: ClassVar[str] = "-"
+    MINUS_CHAR: ClassVar[str] = "-"
     IDENTIFIER_FIRST_CHAR: ClassVar[str] = "@" + string.ascii_letters + "_"
     IDENTIFIER_CHAR: ClassVar[str] = IDENTIFIER_FIRST_CHAR + string.digits
     NEWLINE_CHAR: ClassVar[str] = "\n"
@@ -272,10 +272,10 @@ class Tokenizer:
             return Token(TokenType.HEX_STRING, val)
         # числа
         if (
-            self.ch == TokenType.MINUS and self.next_ch.isnumeric()
+            self.ch == self.MINUS_CHAR and self.next_ch.isnumeric()
         ) or self.ch.isnumeric():
             val = self.ch
-            if self.ch == TokenType.MINUS:
+            if self.ch == self.MINUS_CHAR:
                 self.advance()
                 val += self.ch
             while self.next_ch.isnumeric() or (
@@ -324,7 +324,7 @@ class Tokenizer:
                 # return Token(token_type, ast.literal_eval(f'"{val}"'))
                 return Token(token_type, val)
         # однострочный комментарий
-        if self.ch == self.HYPHEN_CHAR == self.next_ch:
+        if self.ch == self.MINUS_CHAR == self.next_ch:
             val = self.ch * 2
             self.advance()
             while True:
@@ -491,22 +491,22 @@ class Parser:
                 res -= self.term()
         return res
 
+    # def unary(self) -> Any:
+    #     # +++1
+    #     if self.accept(TokenType.PLUS):
+    #         return +self.unary()
+    #     if self.accept(TokenType.MINUS):
+    #         return -self.unary()
+    #     return self.primary()
+
     def term(self) -> Any:
-        res = self.unary()
+        res = self.primary()
         while self.accept(TokenType.MUL, TokenType.DIV):
             if self.prev_token.type == TokenType.MUL:
-                res *= self.unary()
+                res *= self.primary()
             else:
-                res /= self.unary()
+                res /= self.primary()
         return res
-
-    def unary(self) -> Any:
-        # +++1
-        if self.accept(TokenType.PLUS):
-            return +self.unary()
-        if self.accept(TokenType.MINUS):
-            return -self.unary()
-        return self.primary()
 
     def primary(self) -> Any:
         if self.accept(TokenType.LPAREN):
