@@ -402,7 +402,7 @@ class Parser:
             raise ParseError("unexpected end")
 
     def peek_token(self, *expected: TokenType) -> bool:
-        """Проверить тип следующего токена и продвинуться"""
+        """Проверить тип следующего токена и сделать его текущим"""
         if self.next_token.type in expected:
             self.advance_token()
             return True
