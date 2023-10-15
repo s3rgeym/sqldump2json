@@ -60,7 +60,7 @@ class AutoName(str, Enum):
         count: int,
         last_values: list[Any],
     ) -> Any:
-        return name
+        return name.lower()
 
 
 class TokenType(AutoName):
@@ -403,8 +403,10 @@ class Parser:
 
     def get_token(self) -> Token:
         while True:
-            # выглядит очень костыльно
-            token = next(self.tokenizer_it, Tokenizer.TOKEN_EMPTY)
+            try:
+                token = next(self.tokenizer_it)
+            except StopIteration:
+                raise ParseError("Unexcpected end")
             logging.debug(
                 "peek %s at %d:%d", token.type, token.lineno, token.colno
             )
@@ -444,7 +446,7 @@ class Parser:
         rv = self.quoted_identifier()
         # table_space.table_name
         if self.peek_token(TokenType.PERIOD):
-            rv += self.prev_token.value + self.quoted_identifier()
+            rv += self.cur_token.value + self.quoted_identifier()
         return rv
 
     def statement(self) -> None:
@@ -456,17 +458,20 @@ class Parser:
             # имена колонок опциональны
             column_names = []
             if self.peek_token(TokenType.LPAREN):
-                while not self.peek_token(TokenType.RPAREN):
+                while True:
                     column_names.append(self.quoted_identifier())
-                    if self.peek_token(TokenType.COMMA):
-                        continue
+                    if self.peek_token(TokenType.RPAREN):
+                        break
+                    # rparen просто для красоты
+                    self.expect_token(TokenType.COMMA, TokenType.RPAREN)
             self.expect_token(TokenType.VALUES)
             while self.expect_token(TokenType.LPAREN):
                 values = []
-                while not self.peek_token(TokenType.RPAREN):
+                while True:
                     values.append(self.expression())
-                    if self.peek_token(TokenType.COMMA):
-                        continue
+                    if self.peek_token(TokenType.RPAREN):
+                        break
+                    self.expect_token(TokenType.COMMA, TokenType.RPAREN)
                 json.dump(
                     {
                         # "statement": "insert",
@@ -485,7 +490,7 @@ class Parser:
                     continue
                 self.expect_token(TokenType.SEMICOLON)
                 return
-        while not self.peek_token(TokenType.SEMICOLON, TokenType.EOF):
+        while not self.peek_token(TokenType.SEMICOLON):
             self.advance_token()
             logging.debug("skip %s", self.cur_token.type)
 
