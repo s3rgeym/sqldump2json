@@ -31,6 +31,12 @@ $ sqldump2json -i testdata/dump.sql | jq -r 'select(.table_name == "actor").valu
 ...
 ```
 
+Hex strings are converted to base64:
+
+```bash
+sqldump2json -i testdata/dump.sql | tail -4 | head -1 | jq -r '.values[4]' | base64 -d > image.png
+```
+
 Also supports basic arifmetic expressions:
 
 ```bash
