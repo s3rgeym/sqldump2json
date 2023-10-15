@@ -116,7 +116,7 @@ class TokenType(AutoName):
     ...
 
     def __str__(self) -> str:
-        return self.name
+        return "t_" + self.name.lower()
 
 
 class Token(typing.NamedTuple):
@@ -189,7 +189,7 @@ class Tokenizer:
         if c == self.NEWLINE_CHAR:
             self.lineno += 1
             self.colno = 0
-        elif c:
+        else:
             self.colno += 1
         return c
 
@@ -216,13 +216,11 @@ class Tokenizer:
         # True
         if self.ch == "":
             return self.token(TokenType.EOF, "")
-        # пробельные символы
+        # пропускаем пробельные символы
         if self.ch.isspace():
-            val = self.ch
             while self.next_ch.isspace():
                 self.advance()
-                val += self.ch
-            return self.token(TokenType.WHITE_SPACE, val)
+            return self.next_token()
         # идентефикаторы, константы, операторы и ключевые слова
         if self.ch in self.IDENTIFIER_FIRST_CHAR:
             val = self.ch
@@ -328,32 +326,23 @@ class Tokenizer:
                 return self.token(token_type, val)
         # однострочный комментарий
         if self.ch == self.MINUS_CHAR == self.next_ch:
-            val = self.ch * 2
-            self.advance()
             while True:
                 self.advance()
-                if not self.ch:
+                if not self.ch or self.ch == self.NEWLINE_CHAR:
                     break
-                val += self.ch
-                if self.ch == self.NEWLINE_CHAR:
-                    break
-            return self.token(TokenType.COMMENT, val)
+            return self.next_token()
         # многострочный комментарий
         if self.ch == self.SLASH_CHAR and self.next_ch == self.ASTERSISK_CHAR:
-            val = self.ch + self.next_ch
             self.advance()
             while True:
                 self.advance()
-                if not self.ch:
-                    break
-                val += self.ch
                 # TODO: считает /*/ многострочным комментарием
-                if (
+                if not self.ch or (
                     self.prev_ch == self.ASTERSISK_CHAR
                     and self.ch == self.SLASH_CHAR
                 ):
                     break
-            return self.token(TokenType.COMMENT, val)
+            return self.next_token()
         # символьные операторы
         for op, tt in self.SYMBOL_OPERATORS.items():
             assert 2 >= len(op) > 0
@@ -378,6 +367,9 @@ class Tokenizer:
         self.lineno = 1
         self.next_ch = self.readch()
         while t := self.next_token():
+            # if t.type in (TokenType.WHITE_SPACE, TokenType.COMMENT):
+            #     continue
+            logging.debug("token: %s at %d,%d", t.type, t.lineno, t.colno)
             yield t
             if t.type == TokenType.EOF:
                 break
@@ -401,24 +393,13 @@ class ParseError(Error):
 class Parser:
     tokenizer: Tokenizer
 
-    def get_token(self) -> Token:
-        while True:
-            try:
-                token = next(self.tokenizer_it)
-            except StopIteration:
-                raise ParseError("Unexcpected end")
-            logging.debug(
-                "peek %s at %d:%d", token.type, token.lineno, token.colno
-            )
-            if token.type in (TokenType.WHITE_SPACE, TokenType.COMMENT):
-                continue
-            return token
-
     def advance_token(self) -> None:
         self.cur_token, self.next_token = (
             self.next_token,
-            self.get_token(),
+            next(self.tokenizer_it, None),
         )
+        if self.cur_token is None and self.next_token is None:
+            raise ParseError("unexpected end")
 
     def peek_token(self, *expected: TokenType) -> bool:
         """Проверить тип следующего токена и продвинуться"""
@@ -536,7 +517,7 @@ class Parser:
 
     def parse(self) -> None:
         self.tokenizer_it = iter(self.tokenizer)
-        self.next_token = Tokenizer.TOKEN_EMPTY
+        self.cur_token = self.next_token = None
         self.advance_token()
         while not self.peek_token(TokenType.EOF):
             self.statement()
