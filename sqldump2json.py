@@ -9,12 +9,14 @@
 # https://en.wikipedia.org/wiki/Recursive_descent_parser
 """Parse SQL Dumps to JSON Objects"""
 import argparse
+import binascii
 import json
 import logging
 import os
 import string
 import sys
 import typing
+from base64 import b64encode
 from dataclasses import dataclass
 from enum import Enum, auto
 from typing import Any, ClassVar, Iterable, Iterator, Self, Sequence
@@ -117,8 +119,7 @@ class TokenType(AutoName):
         return self.name
 
 
-@dataclass
-class Token:
+class Token(typing.NamedTuple):
     type: TokenType
     value: Any
     lineno: int = -1
@@ -143,6 +144,7 @@ class UnexpectedEnd(Error):
     pass
 
 
+# Данный токенайзер не яыляется примером идеального кода, но все работает... и у меня не так много свободного времени чтобы все переписать по уму
 @dataclass
 class Tokenizer:
     fp: typing.TextIO
@@ -181,6 +183,7 @@ class Tokenizer:
         ">": TokenType.GT,
     }
 
+    # Медленная функция
     def readch(self) -> str:
         c = self.fp.read(1)
         if c == self.NEWLINE_CHAR:
@@ -212,14 +215,14 @@ class Tokenizer:
         # >>> '' in 'abc'
         # True
         if self.ch == "":
-            return Token(TokenType.EOF, "")
+            return self.token(TokenType.EOF, "")
         # пробельные символы
         if self.ch.isspace():
             val = self.ch
             while self.next_ch.isspace():
                 self.advance()
                 val += self.ch
-            return Token(TokenType.WHITE_SPACE, val)
+            return self.token(TokenType.WHITE_SPACE, val)
         # идентефикаторы, константы, операторы и ключевые слова
         if self.ch in self.IDENTIFIER_FIRST_CHAR:
             val = self.ch
@@ -229,9 +232,9 @@ class Tokenizer:
             upper = val.upper()
             match upper:
                 case "NULL":
-                    return Token(TokenType.NULL, None)
+                    return self.token(TokenType.NULL, None)
                 case "TRUE" | "FALSE":
-                    return Token(TokenType.BOOL, val == "TRUE")
+                    return self.token(TokenType.BOOL, val == "TRUE")
                 case (
                     "ALTER"
                     | "AND"
@@ -252,11 +255,11 @@ class Tokenizer:
                     | "VALUES"
                     | "WHERE"
                 ):
-                    return Token(TokenType[upper], val)
-            return Token(TokenType.IDENTIFIER, val)
+                    return self.token(TokenType[upper], val)
+            return self.token(TokenType.IDENTIFIER, val)
         # бинарные данные хранятся в Неведомой Ебанной Хуйне
         if self.ch == "0" and self.next_ch.lower() == "x":
-            val = "0x"
+            val = ""
             self.advance()
             while self.next_ch in self.HEX_CHAR:
                 self.advance()
@@ -264,12 +267,12 @@ class Tokenizer:
                 # hex-строки могут разбиваться
                 if self.next_ch == self.NEWLINE_CHAR:
                     self.advance()
-            if len(val) == 2:
+            if not val:
                 raise Error(
                     f"invalid hex string at line {self.token_lineno} and column {self.token_colno}"
                 )
-            # TODO: конвертировать в bytes?
-            return Token(TokenType.HEX_STRING, val)
+            # hex string => bytes
+            return self.token(TokenType.HEX_STRING, binascii.unhexlify(val))
         # числа
         if (
             self.ch == self.MINUS_CHAR and self.next_ch.isnumeric()
@@ -284,9 +287,9 @@ class Tokenizer:
                 self.advance()
                 val += self.ch
             return (
-                Token(TokenType.FLOAT, float(val))
+                self.token(TokenType.FLOAT, float(val))
                 if self.PERIOD_CHAR in val
-                else Token(TokenType.INT, int(val))
+                else self.token(TokenType.INT, int(val))
             )
         # строки с разными типами кавычек
         for quote_char, token_type in [
@@ -321,8 +324,8 @@ class Tokenizer:
                 # нужно преобразовать escape-последовательности
                 # нормализуем сначала кавычки, добавив ко всем слеши ("'" и '"')
                 # val = re.sub(r'(?<!\\)[\'"`]', r"\\\g<0>", val)
-                # return Token(token_type, ast.literal_eval(f'"{val}"'))
-                return Token(token_type, val)
+                # return self.token(token_type, ast.literal_eval(f'"{val}"'))
+                return self.token(token_type, val)
         # однострочный комментарий
         if self.ch == self.MINUS_CHAR == self.next_ch:
             val = self.ch * 2
@@ -334,7 +337,7 @@ class Tokenizer:
                 val += self.ch
                 if self.ch == self.NEWLINE_CHAR:
                     break
-            return Token(TokenType.COMMENT, val)
+            return self.token(TokenType.COMMENT, val)
         # многострочный комментарий
         if self.ch == self.SLASH_CHAR and self.next_ch == self.ASTERSISK_CHAR:
             val = self.ch + self.next_ch
@@ -350,7 +353,7 @@ class Tokenizer:
                     and self.ch == self.SLASH_CHAR
                 ):
                     break
-            return Token(TokenType.COMMENT, val)
+            return self.token(TokenType.COMMENT, val)
         # символьные операторы
         for op, tt in self.SYMBOL_OPERATORS.items():
             assert 2 >= len(op) > 0
@@ -360,8 +363,13 @@ class Tokenizer:
                 self.advance()
             elif op != self.ch:
                 continue
-            return Token(tt, op)
+            return self.token(tt, op)
         raise UnexpectedChar(char=self.ch, lineno=self.lineno, colno=self.colno)
+
+    def token(self, *args: Any, **kwargs: Any) -> Token:
+        return Token(
+            *args, **kwargs, colno=self.token_colno, lineno=self.token_lineno
+        )
 
     def tokenize(self) -> Iterable[Token]:
         self.fp.seekable() and self.fp.seek(0)
@@ -370,7 +378,6 @@ class Tokenizer:
         self.lineno = 1
         self.next_ch = self.readch()
         while t := self.next_token():
-            t.colno, t.lineno = self.token_colno, self.token_lineno
             yield t
             if t.type == TokenType.EOF:
                 break
@@ -394,7 +401,7 @@ class ParseError(Error):
 class Parser:
     tokenizer: Tokenizer
 
-    def peek_token(self) -> Token:
+    def get_token(self) -> Token:
         while True:
             # выглядит очень костыльно
             token = next(self.tokenizer_it, Tokenizer.TOKEN_EMPTY)
@@ -406,20 +413,20 @@ class Parser:
             return token
 
     def advance_token(self) -> None:
-        self.prev_token, self.cur_token, self.next_token = (
-            self.cur_token,
+        self.cur_token, self.next_token = (
             self.next_token,
-            self.peek_token(),
+            self.get_token(),
         )
 
-    def accept(self, *expected: TokenType) -> bool:
-        if self.cur_token.type in expected:
+    def peek_token(self, *expected: TokenType) -> bool:
+        """Проверить тип следующего токена и продвинуться"""
+        if self.next_token.type in expected:
             self.advance_token()
             return True
         return False
 
-    def expect(self, *expected: TokenType) -> Self:
-        if not self.accept(*expected):
+    def expect_token(self, *expected: TokenType) -> Self:
+        if not self.peek_token(*expected):
             raise ParseError(
                 f"unexpected token {self.cur_token.value!r} at line {self.cur_token.lineno} and column {self.cur_token.colno}; expected: {', '.join(map(str, expected))}"
             )
@@ -427,38 +434,38 @@ class Parser:
         return self
 
     def quoted_identifier(self) -> str:
-        return self.expect(
+        return self.expect_token(
             TokenType.IDENTIFIER,
             TokenType.DOUBLE_QUOTED_STRING,
             TokenType.BACKTICK_STRING,
-        ).prev_token.value
+        ).cur_token.value
 
     def table_identifier(self) -> str:
         rv = self.quoted_identifier()
         # table_space.table_name
-        if self.accept(TokenType.PERIOD):
+        if self.peek_token(TokenType.PERIOD):
             rv += self.prev_token.value + self.quoted_identifier()
         return rv
 
     def statement(self) -> None:
         # INSERT INTO tbl (col1, col2) VALUES ('a', 1);
-        if self.accept(TokenType.INSERT):
+        if self.peek_token(TokenType.INSERT):
             logging.debug("parse insert statement")
-            self.expect(TokenType.INTO)
+            self.expect_token(TokenType.INTO)
             table_name = self.table_identifier()
             # имена колонок опциональны
             column_names = []
-            if self.accept(TokenType.LPAREN):
-                while not self.accept(TokenType.RPAREN):
+            if self.peek_token(TokenType.LPAREN):
+                while not self.peek_token(TokenType.RPAREN):
                     column_names.append(self.quoted_identifier())
-                    if self.accept(TokenType.COMMA):
+                    if self.peek_token(TokenType.COMMA):
                         continue
-            self.expect(TokenType.VALUES)
-            while self.expect(TokenType.LPAREN):
+            self.expect_token(TokenType.VALUES)
+            while self.expect_token(TokenType.LPAREN):
                 values = []
-                while not self.accept(TokenType.RPAREN):
+                while not self.peek_token(TokenType.RPAREN):
                     values.append(self.expression())
-                    if self.accept(TokenType.COMMA):
+                    if self.peek_token(TokenType.COMMA):
                         continue
                 json.dump(
                     {
@@ -470,24 +477,22 @@ class Parser:
                     },
                     fp=sys.stdout,
                     ensure_ascii=False,
+                    cls=Base64Encoder,
                 )
                 sys.stdout.write(os.linesep)
                 sys.stdout.flush()
-                if self.accept(TokenType.COMMA):
+                if self.peek_token(TokenType.COMMA):
                     continue
-                self.expect(TokenType.SEMICOLON)
+                self.expect_token(TokenType.SEMICOLON)
                 return
-        while self.cur_token.type != TokenType.EOF:
-            logging.debug("skip %s", self.cur_token.type)
+        while not self.peek_token(TokenType.SEMICOLON, TokenType.EOF):
             self.advance_token()
-            if self.accept(TokenType.SEMICOLON):
-                logging.debug("break ;")
-                return
+            logging.debug("skip %s", self.cur_token.type)
 
     def expression(self) -> Any:
         res = self.term()
-        while self.accept(TokenType.PLUS, TokenType.MINUS):
-            if self.prev_token.type == TokenType.PLUS:
+        while self.peek_token(TokenType.PLUS, TokenType.MINUS):
+            if self.cur_token.type == TokenType.PLUS:
                 res += self.term()
             else:
                 res -= self.term()
@@ -495,41 +500,40 @@ class Parser:
 
     # def unary(self) -> Any:
     #     # +++1
-    #     if self.accept(TokenType.PLUS):
+    #     if self.peek_token(TokenType.PLUS):
     #         return +self.unary()
-    #     if self.accept(TokenType.MINUS):
+    #     if self.peek_token(TokenType.MINUS):
     #         return -self.unary()
     #     return self.primary()
 
     def term(self) -> Any:
         res = self.primary()
-        while self.accept(TokenType.MUL, TokenType.DIV):
-            if self.prev_token.type == TokenType.MUL:
+        while self.peek_token(TokenType.MUL, TokenType.DIV):
+            if self.cur_token.type == TokenType.MUL:
                 res *= self.primary()
             else:
                 res /= self.primary()
         return res
 
     def primary(self) -> Any:
-        if self.accept(TokenType.LPAREN):
+        if self.peek_token(TokenType.LPAREN):
             res = self.expression()
-            self.expect(TokenType.RPAREN)
+            self.expect_token(TokenType.RPAREN)
             return res
-        return self.expect(
+        return self.expect_token(
             TokenType.INT,
             TokenType.FLOAT,
             TokenType.BOOL,
             TokenType.NULL,
             TokenType.STRING,
             TokenType.HEX_STRING,
-        ).prev_token.value
+        ).cur_token.value
 
     def parse(self) -> None:
         self.tokenizer_it = iter(self.tokenizer)
-        self.cur_token = Tokenizer.TOKEN_EMPTY
-        self.next_token = self.peek_token()
+        self.next_token = Tokenizer.TOKEN_EMPTY
         self.advance_token()
-        while self.cur_token.type != TokenType.EOF:
+        while not self.peek_token(TokenType.EOF):
             self.statement()
         logging.info("finished")
 
@@ -564,7 +568,15 @@ def main(argv: Sequence[str] | None = None) -> None:
     try:
         parser.parse()
     except KeyboardInterrupt:
-        print("\nGoodbye!", file=sys.stderr)
+        print("\nbye!", file=sys.stderr)
+
+
+class Base64Encoder(json.JSONEncoder):
+    # pylint: disable=method-hidden
+    def default(self, o: Any) -> str:
+        if isinstance(o, bytes):
+            return b64encode(o).decode()
+        return json.JSONEncoder.default(self, o)
 
 
 if __name__ == "__main__":
