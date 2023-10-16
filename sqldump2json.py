@@ -454,7 +454,7 @@ class Parser:
             while self.expect_token(TokenType.T_LPAREN):
                 values = []
                 while True:
-                    values.append(self.expression())
+                    values.append(self.expr())
                     if self.peek_token(TokenType.T_RPAREN):
                         break
                     self.expect_token(TokenType.T_COMMA, TokenType.T_RPAREN)
@@ -480,48 +480,67 @@ class Parser:
             self.advance_token()
             logging.debug("skip %s", self.cur_token.type)
 
-    def expression(self) -> Any:
-        rv = self.addsub()
-        if self.peek_token(TokenType.T_AND):
-            rv = rv and self.addsub()
-        elif self.peek_token(TokenType.T_OR):
-            rv = rv or self.addsub()
-        elif self.peek_token(TokenType.T_EQ):
-            rv = rv == self.addsub()
-        elif self.peek_token(TokenType.T_NE):
-            rv = rv != self.addsub()
-        elif self.peek_token(TokenType.T_LT):
-            rv = rv < self.addsub()
-        elif self.peek_token(TokenType.T_LTE):
-            rv = rv <= self.addsub()
-        elif self.peek_token(TokenType.T_GT):
-            rv = rv > self.addsub()
-        elif self.peek_token(TokenType.T_GTE):
-            rv = rv >= self.addsub()
+    # Проритет операторов описан здесь:
+    # https://learn.microsoft.com/ru-ru/sql/t-sql/language-elements/operator-precedence-transact-sql?view=sql-server-ver16
+    # Чем ниже приоритет тем первее вызывается
+    def andop(self) -> Any:
+        rv = self.orop()
+        while self.peek_token(TokenType.T_AND):
+            rv = rv and self.orop()
         return rv
 
+    expr = andop
+
+    def orop(self) -> Any:
+        rv = self.compare()
+        while self.peek_token(TokenType.T_OR):
+            rv = rv and self.compare()
+        return rv
+
+    def compare(self) -> Any:
+        rv = self.addsub()
+        while True:
+            if self.peek_token(TokenType.T_EQ):
+                rv = rv == self.addsub()
+            elif self.peek_token(TokenType.T_NE):
+                rv = rv != self.addsub()
+            elif self.peek_token(TokenType.T_LT):
+                rv = rv < self.addsub()
+            elif self.peek_token(TokenType.T_LTE):
+                rv = rv <= self.addsub()
+            elif self.peek_token(TokenType.T_GT):
+                rv = rv > self.addsub()
+            elif self.peek_token(TokenType.T_GTE):
+                rv = rv >= self.addsub()
+            else:
+                return rv
+
     def addsub(self) -> Any:
-        res = self.muldiv()
+        rv = self.muldiv()
         while self.peek_token(TokenType.T_PLUS, TokenType.T_MINUS):
             if self.cur_token.type == TokenType.T_PLUS:
-                res += self.muldiv()
+                rv += self.muldiv()
             else:
-                res -= self.muldiv()
-        return res
+                rv -= self.muldiv()
+        return rv
 
     def muldiv(self) -> Any:
-        res = self.primary()
-        if self.peek_token(TokenType.T_MUL):
-            return res * self.primary()
-        if self.peek_token(TokenType.T_DIV):
-            return res / self.primary()
-        return res
+        rv = self.primary()
+        while self.peek_token(TokenType.T_MUL, TokenType.T_DIV):
+            if self.cur_token.type == TokenType.T_MUL:
+                rv *= self.primary()
+            else:
+                rv /= self.primary()
+        return rv
 
     def primary(self) -> Any:
+        # Я не уверен, что он должен быть тут
+        if self.peek_token(TokenType.T_NOT):
+            return not self.primary()
         if self.peek_token(TokenType.T_LPAREN):
-            res = self.expression()
+            rv = self.expr()
             self.expect_token(TokenType.T_RPAREN)
-            return res
+            return rv
         return self.expect_token(
             TokenType.T_INT,
             TokenType.T_FLOAT,
