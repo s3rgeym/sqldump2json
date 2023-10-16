@@ -195,7 +195,7 @@ class Tokenizer:
         if c == self.NEWLINE_CHAR:
             self.lineno += 1
             self.colno = 0
-        else:
+        elif c:
             self.colno += 1
         return c
 
