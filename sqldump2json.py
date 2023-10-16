@@ -483,13 +483,21 @@ class Parser:
     def expression(self) -> Any:
         rv = self.addsub()
         if self.peek_token(TokenType.T_AND):
-            rv &= self.addsub()
+            rv = rv and self.addsub()
         elif self.peek_token(TokenType.T_OR):
-            rv |= self.addsub()
+            rv = rv or self.addsub()
         elif self.peek_token(TokenType.T_EQ):
             rv = rv == self.addsub()
         elif self.peek_token(TokenType.T_NE):
             rv = rv != self.addsub()
+        elif self.peek_token(TokenType.T_LT):
+            rv = rv < self.addsub()
+        elif self.peek_token(TokenType.T_LTE):
+            rv = rv <= self.addsub()
+        elif self.peek_token(TokenType.T_GT):
+            rv = rv > self.addsub()
+        elif self.peek_token(TokenType.T_GTE):
+            rv = rv >= self.addsub()
         return rv
 
     def addsub(self) -> Any:
