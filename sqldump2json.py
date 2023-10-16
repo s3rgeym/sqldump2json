@@ -60,63 +60,63 @@ class AutoName(str, Enum):
         count: int,
         last_values: list[Any],
     ) -> Any:
-        return name.lower()
+        return name
 
 
 class TokenType(AutoName):
-    ALTER = auto()
-    AND = auto()
-    ASSIGN = auto()
-    BACKTICK_STRING = auto()
-    BOOL = auto()
-    COMMA = auto()
-    COMMENT = auto()
-    CONCAT = auto()
-    CREATE = auto()
-    DELETE = auto()
-    DIV = auto()
-    DOUBLE_QUOTED_STRING = auto()
-    EMPTY = auto()
-    EOF = auto()
-    EQ = auto()
-    EXISTS = auto()
-    FLOAT = auto()
-    FROM = auto()
-    GT = auto()  # greater than
-    GTE = auto()  # greater than or equal
-    HEX_STRING = auto()
-    IDENTIFIER = auto()
-    IF = auto()
-    INSERT = auto()
-    INT = auto()
-    INTO = auto()
-    LPAREN = auto()
-    LT = auto()  # less than
-    LTE = auto()  # less than or equal
-    MINUS = auto()
-    MUL = auto()
-    NE = auto()
-    NOT = auto()
-    NULL = auto()
-    OR = auto()
-    PERIOD = auto()
-    PLUS = auto()
-    QMARK = auto()
-    RPAREN = auto()
-    SELECT = auto()
-    SEMICOLON = auto()
-    SET = auto()
-    STRING = auto()
-    TABLE = auto()
-    UPDATE = auto()
-    USE = auto()
-    VALUES = auto()
-    WHERE = auto()
-    WHITE_SPACE = auto()
+    T_ALTER = auto()
+    T_AND = auto()
+    T_ASSIGN = auto()
+    T_BACKTICK_STRING = auto()
+    T_BOOL = auto()
+    T_COMMA = auto()
+    T_COMMENT = auto()
+    T_CONCAT = auto()
+    T_CREATE = auto()
+    T_DELETE = auto()
+    T_DIV = auto()
+    T_DOUBLE_QUOTED_STRING = auto()
+    T_EMPTY = auto()
+    T_EOF = auto()
+    T_EQ = auto()
+    T_EXISTS = auto()
+    T_FLOAT = auto()
+    T_FROM = auto()
+    T_GT = auto()  # greater than
+    T_GTE = auto()  # greater than or equal
+    T_HEX_STRING = auto()
+    T_IDENTIFIER = auto()
+    T_IF = auto()
+    T_INSERT = auto()
+    T_INT = auto()
+    T_INTO = auto()
+    T_LPAREN = auto()
+    T_LT = auto()  # less than
+    T_LTE = auto()  # less than or equal
+    T_MINUS = auto()
+    T_MUL = auto()
+    T_NE = auto()
+    T_NOT = auto()
+    T_NULL = auto()
+    T_OR = auto()
+    T_PERIOD = auto()
+    T_PLUS = auto()
+    T_QMARK = auto()
+    T_RPAREN = auto()
+    T_SELECT = auto()
+    T_SEMICOLON = auto()
+    T_SET = auto()
+    T_STRING = auto()
+    T_TABLE = auto()
+    T_UPDATE = auto()
+    T_USE = auto()
+    T_VALUES = auto()
+    T_WHERE = auto()
+    T_WHITE_SPACE = auto()
     ...
 
     def __str__(self) -> str:
-        return "t_" + self.name.lower()
+        return self.value
 
 
 class Token(typing.NamedTuple):
@@ -144,6 +144,10 @@ class UnexpectedEnd(Error):
     pass
 
 
+def sort_keys_length(d: dict) -> dict:
+    return dict(sorted(d.items(), key=lambda kv: len(kv[0]), reverse=True))
+
+
 # Данный токенайзер не яыляется примером идеального кода, но все работает... и у меня не так много свободного времени чтобы все переписать по уму
 @dataclass
 class Tokenizer:
@@ -161,27 +165,29 @@ class Tokenizer:
     PERIOD_CHAR: ClassVar[str] = "."
     QUOTE_CHAR: ClassVar[str] = "'"
     SLASH_CHAR: ClassVar[str] = "/"
-    TOKEN_EMPTY: ClassVar[Token] = Token(TokenType.EMPTY, "")
-    SYMBOL_OPERATORS: ClassVar[dict[str, TokenType]] = {
-        ":=": TokenType.ASSIGN,
-        "!=": TokenType.NE,
-        "<=": TokenType.LTE,
-        "<>": TokenType.NE,
-        ">=": TokenType.GTE,
-        "||": TokenType.CONCAT,
-        "-": TokenType.MINUS,  # substraction
-        ",": TokenType.COMMA,
-        ";": TokenType.SEMICOLON,
-        ".": TokenType.PERIOD,
-        "(": TokenType.LPAREN,
-        ")": TokenType.RPAREN,
-        "*": TokenType.MUL,
-        "/": TokenType.DIV,
-        "+": TokenType.PLUS,  # addition
-        "<": TokenType.LT,
-        "=": TokenType.EQ,
-        ">": TokenType.GT,
-    }
+    TOKEN_EMPTY: ClassVar[Token] = Token(TokenType.T_EMPTY, "")
+    SYMBOL_OPERATORS: ClassVar[dict[str, TokenType]] = sort_keys_length(
+        {
+            "-": TokenType.T_MINUS,  # substraction
+            ",": TokenType.T_COMMA,
+            ";": TokenType.T_SEMICOLON,
+            ":=": TokenType.T_ASSIGN,
+            "!=": TokenType.T_NE,
+            ".": TokenType.T_PERIOD,
+            "(": TokenType.T_LPAREN,
+            ")": TokenType.T_RPAREN,
+            "*": TokenType.T_MUL,
+            "/": TokenType.T_DIV,
+            "+": TokenType.T_PLUS,  # addition
+            "<": TokenType.T_LT,
+            "<=": TokenType.T_LTE,
+            "<>": TokenType.T_NE,
+            "=": TokenType.T_EQ,
+            ">": TokenType.T_GT,
+            ">=": TokenType.T_GTE,
+            "||": TokenType.T_CONCAT,
+        }
+    )
 
     # Медленная функция
     def readch(self) -> str:
@@ -200,8 +206,7 @@ class Tokenizer:
         return rv
 
     def advance(self) -> None:
-        self.prev_ch, self.ch, self.next_ch = (
-            self.ch,
+        self.ch, self.next_ch = (
             self.next_ch,
             self.readch(),
         )
@@ -215,7 +220,7 @@ class Tokenizer:
         # >>> '' in 'abc'
         # True
         if self.ch == "":
-            return self.token(TokenType.EOF, "")
+            return self.token(TokenType.T_EOF, "")
         # пропускаем пробельные символы
         if self.ch.isspace():
             while self.next_ch.isspace():
@@ -230,9 +235,9 @@ class Tokenizer:
             upper = val.upper()
             match upper:
                 case "NULL":
-                    return self.token(TokenType.NULL, None)
+                    return self.token(TokenType.T_NULL, None)
                 case "TRUE" | "FALSE":
-                    return self.token(TokenType.BOOL, val == "TRUE")
+                    return self.token(TokenType.T_BOOL, val == "TRUE")
                 case (
                     "ALTER"
                     | "AND"
@@ -253,8 +258,8 @@ class Tokenizer:
                     | "VALUES"
                     | "WHERE"
                 ):
-                    return self.token(TokenType[upper], val)
-            return self.token(TokenType.IDENTIFIER, val)
+                    return self.token(TokenType[f"T_{upper}"], val)
+            return self.token(TokenType.T_IDENTIFIER, val)
         # бинарные данные хранятся в Неведомой Ебанной Хуйне
         if self.ch == "0" and self.next_ch.lower() == "x":
             val = ""
@@ -270,7 +275,7 @@ class Tokenizer:
                     f"invalid hex string at line {self.token_lineno} and column {self.token_colno}"
                 )
             # hex string => bytes
-            return self.token(TokenType.HEX_STRING, binascii.unhexlify(val))
+            return self.token(TokenType.T_HEX_STRING, binascii.unhexlify(val))
         # числа
         if (
             self.ch == self.MINUS_CHAR and self.next_ch.isnumeric()
@@ -285,15 +290,15 @@ class Tokenizer:
                 self.advance()
                 val += self.ch
             return (
-                self.token(TokenType.FLOAT, float(val))
+                self.token(TokenType.T_FLOAT, float(val))
                 if self.PERIOD_CHAR in val
-                else self.token(TokenType.INT, int(val))
+                else self.token(TokenType.T_INT, int(val))
             )
         # строки с разными типами кавычек
         for quote_char, token_type in [
-            (self.QUOTE_CHAR, TokenType.STRING),
-            (self.DOUBLE_QUOTE_CHAR, TokenType.DOUBLE_QUOTED_STRING),
-            (self.BACKTICK_CHAR, TokenType.BACKTICK_STRING),
+            (self.QUOTE_CHAR, TokenType.T_STRING),
+            (self.DOUBLE_QUOTE_CHAR, TokenType.T_DOUBLE_QUOTED_STRING),
+            (self.BACKTICK_CHAR, TokenType.T_BACKTICK_STRING),
         ]:
             if self.ch == quote_char:
                 # кавычки не нужно запоминать
@@ -326,21 +331,21 @@ class Tokenizer:
                 return self.token(token_type, val)
         # однострочный комментарий
         if self.ch == self.MINUS_CHAR == self.next_ch:
-            while True:
+            while self.ch:
                 self.advance()
-                if not self.ch or self.ch == self.NEWLINE_CHAR:
+                if self.ch == self.NEWLINE_CHAR:
                     break
             return self.next_token()
         # многострочный комментарий
         if self.ch == self.SLASH_CHAR and self.next_ch == self.ASTERSISK_CHAR:
             self.advance()
-            while True:
+            while self.ch:
                 self.advance()
-                # TODO: считает /*/ многострочным комментарием
-                if not self.ch or (
-                    self.prev_ch == self.ASTERSISK_CHAR
-                    and self.ch == self.SLASH_CHAR
+                if (
+                    self.ch == self.ASTERSISK_CHAR
+                    and self.next_ch == self.SLASH_CHAR
                 ):
+                    self.advance()
                     break
             return self.next_token()
         # символьные операторы
@@ -367,11 +372,11 @@ class Tokenizer:
         self.lineno = 1
         self.next_ch = self.readch()
         while t := self.next_token():
-            # if t.type in (TokenType.WHITE_SPACE, TokenType.COMMENT):
+            # if t.type in (TokenType.T_WHITE_SPACE, TokenType.T_COMMENT):
             #     continue
             logging.debug("token: %s at %d,%d", t.type, t.lineno, t.colno)
             yield t
-            if t.type == TokenType.EOF:
+            if t.type == TokenType.T_EOF:
                 break
 
     # def __iter__(self) -> typing.Self:
@@ -411,48 +416,48 @@ class Parser:
     def expect_token(self, *expected: TokenType) -> Self:
         if not self.peek_token(*expected):
             raise ParseError(
-                f"unexpected token {self.cur_token.value!r} at line {self.cur_token.lineno} and column {self.cur_token.colno}; expected: {', '.join(map(str, expected))}"
+                f"unexpected token {self.cur_token.type} at line {self.cur_token.lineno} and column {self.cur_token.colno}; expected: {', '.join(map(str, expected))}"
             )
         # Когда нечего вернуть, то лучше всего возвращать self
         return self
 
     def quoted_identifier(self) -> str:
         return self.expect_token(
-            TokenType.IDENTIFIER,
-            TokenType.DOUBLE_QUOTED_STRING,
-            TokenType.BACKTICK_STRING,
+            TokenType.T_IDENTIFIER,
+            TokenType.T_DOUBLE_QUOTED_STRING,
+            TokenType.T_BACKTICK_STRING,
         ).cur_token.value
 
     def table_identifier(self) -> str:
         rv = self.quoted_identifier()
         # table_space.table_name
-        if self.peek_token(TokenType.PERIOD):
+        if self.peek_token(TokenType.T_PERIOD):
             rv += self.cur_token.value + self.quoted_identifier()
         return rv
 
     def statement(self) -> None:
         # INSERT INTO tbl (col1, col2) VALUES ('a', 1);
-        if self.peek_token(TokenType.INSERT):
+        if self.peek_token(TokenType.T_INSERT):
             logging.debug("parse insert statement")
-            self.expect_token(TokenType.INTO)
+            self.expect_token(TokenType.T_INTO)
             table_name = self.table_identifier()
             # имена колонок опциональны
             column_names = []
-            if self.peek_token(TokenType.LPAREN):
+            if self.peek_token(TokenType.T_LPAREN):
                 while True:
                     column_names.append(self.quoted_identifier())
-                    if self.peek_token(TokenType.RPAREN):
+                    if self.peek_token(TokenType.T_RPAREN):
                         break
                     # rparen просто для красоты
-                    self.expect_token(TokenType.COMMA, TokenType.RPAREN)
-            self.expect_token(TokenType.VALUES)
-            while self.expect_token(TokenType.LPAREN):
+                    self.expect_token(TokenType.T_COMMA, TokenType.T_RPAREN)
+            self.expect_token(TokenType.T_VALUES)
+            while self.expect_token(TokenType.T_LPAREN):
                 values = []
                 while True:
                     values.append(self.expression())
-                    if self.peek_token(TokenType.RPAREN):
+                    if self.peek_token(TokenType.T_RPAREN):
                         break
-                    self.expect_token(TokenType.COMMA, TokenType.RPAREN)
+                    self.expect_token(TokenType.T_COMMA, TokenType.T_RPAREN)
                 json.dump(
                     {
                         # "statement": "insert",
@@ -467,59 +472,63 @@ class Parser:
                 )
                 sys.stdout.write(os.linesep)
                 sys.stdout.flush()
-                if self.peek_token(TokenType.COMMA):
+                if self.peek_token(TokenType.T_COMMA):
                     continue
-                self.expect_token(TokenType.SEMICOLON)
+                self.expect_token(TokenType.T_SEMICOLON)
                 return
-        while not self.peek_token(TokenType.SEMICOLON):
+        while not self.peek_token(TokenType.T_SEMICOLON):
             self.advance_token()
             logging.debug("skip %s", self.cur_token.type)
 
     def expression(self) -> Any:
-        res = self.term()
-        while self.peek_token(TokenType.PLUS, TokenType.MINUS):
-            if self.cur_token.type == TokenType.PLUS:
-                res += self.term()
+        rv = self.addsub()
+        if self.peek_token(TokenType.T_AND):
+            rv &= self.addsub()
+        elif self.peek_token(TokenType.T_OR):
+            rv |= self.addsub()
+        elif self.peek_token(TokenType.T_EQ):
+            rv = rv == self.addsub()
+        elif self.peek_token(TokenType.T_NE):
+            rv = rv != self.addsub()
+        return rv
+
+    def addsub(self) -> Any:
+        res = self.muldiv()
+        while self.peek_token(TokenType.T_PLUS, TokenType.T_MINUS):
+            if self.cur_token.type == TokenType.T_PLUS:
+                res += self.muldiv()
             else:
-                res -= self.term()
+                res -= self.muldiv()
         return res
 
-    # def unary(self) -> Any:
-    #     # +++1
-    #     if self.peek_token(TokenType.PLUS):
-    #         return +self.unary()
-    #     if self.peek_token(TokenType.MINUS):
-    #         return -self.unary()
-    #     return self.primary()
-
-    def term(self) -> Any:
+    def muldiv(self) -> Any:
         res = self.primary()
-        while self.peek_token(TokenType.MUL, TokenType.DIV):
-            if self.cur_token.type == TokenType.MUL:
+        while self.peek_token(TokenType.T_MUL, TokenType.T_DIV):
+            if self.cur_token.type == TokenType.T_MUL:
                 res *= self.primary()
             else:
                 res /= self.primary()
         return res
 
     def primary(self) -> Any:
-        if self.peek_token(TokenType.LPAREN):
+        if self.peek_token(TokenType.T_LPAREN):
             res = self.expression()
-            self.expect_token(TokenType.RPAREN)
+            self.expect_token(TokenType.T_RPAREN)
             return res
         return self.expect_token(
-            TokenType.INT,
-            TokenType.FLOAT,
-            TokenType.BOOL,
-            TokenType.NULL,
-            TokenType.STRING,
-            TokenType.HEX_STRING,
+            TokenType.T_INT,
+            TokenType.T_FLOAT,
+            TokenType.T_BOOL,
+            TokenType.T_NULL,
+            TokenType.T_STRING,
+            TokenType.T_HEX_STRING,
         ).cur_token.value
 
     def parse(self) -> None:
         self.tokenizer_it = iter(self.tokenizer)
         self.cur_token = self.next_token = None
         self.advance_token()
-        while not self.peek_token(TokenType.EOF):
+        while not self.peek_token(TokenType.T_EOF):
             self.statement()
         logging.info("finished")
 
