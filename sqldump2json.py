@@ -511,11 +511,10 @@ class Parser:
 
     def muldiv(self) -> Any:
         res = self.primary()
-        while self.peek_token(TokenType.T_MUL, TokenType.T_DIV):
-            if self.cur_token.type == TokenType.T_MUL:
-                res *= self.primary()
-            else:
-                res /= self.primary()
+        if self.peek_token(TokenType.T_MUL):
+            return res * self.primary()
+        if self.peek_token(TokenType.T_DIV):
+            return res / self.primary()
         return res
 
     def primary(self) -> Any:
