@@ -416,7 +416,7 @@ class Parser:
     def expect_token(self, *expected: TokenType) -> Self:
         if not self.peek_token(*expected):
             raise ParseError(
-                f"unexpected token {self.cur_token.type} at line {self.cur_token.lineno} and column {self.cur_token.colno}; expected: {', '.join(map(str, expected))}"
+                f"unexpected token {self.next_token.type} at line {self.next_token.lineno} and column {self.next_token.colno}; expected: {', '.join(map(str, expected))}"
             )
         # Когда нечего вернуть, то лучше всего возвращать self
         return self
