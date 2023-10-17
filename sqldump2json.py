@@ -144,8 +144,8 @@ class UnexpectedEnd(Error):
     pass
 
 
-def sort_keys_length(d: dict) -> dict:
-    return dict(sorted(d.items(), key=lambda kv: len(kv[0]), reverse=True))
+# def sort_keys_length(d: dict) -> dict:
+#     return dict(sorted(d.items(), key=lambda kv: len(kv[0]), reverse=True))
 
 
 # Данный токенайзер не яыляется примером идеального кода, но все работает... и у меня не так много свободного времени чтобы все переписать по уму
@@ -159,35 +159,33 @@ class Tokenizer:
     ESCAPE_CHAR: ClassVar[str] = "\\"
     HEX_CHAR: ClassVar[str] = string.hexdigits
     MINUS_CHAR: ClassVar[str] = "-"
-    IDENTIFIER_FIRST_CHAR: ClassVar[str] = "@" + string.ascii_letters + "_"
-    IDENTIFIER_CHAR: ClassVar[str] = IDENTIFIER_FIRST_CHAR + string.digits
+    ID_FIRST_CHAR: ClassVar[str] = "@" + string.ascii_letters + "_"
+    ID_CHAR: ClassVar[str] = ID_FIRST_CHAR + string.digits
     NEWLINE_CHAR: ClassVar[str] = "\n"
     PERIOD_CHAR: ClassVar[str] = "."
     QUOTE_CHAR: ClassVar[str] = "'"
     SLASH_CHAR: ClassVar[str] = "/"
     TOKEN_EMPTY: ClassVar[Token] = Token(TokenType.T_EMPTY, "")
-    SYMBOL_OPERATORS: ClassVar[dict[str, TokenType]] = sort_keys_length(
-        {
-            "-": TokenType.T_MINUS,  # substraction
-            ",": TokenType.T_COMMA,
-            ";": TokenType.T_SEMICOLON,
-            ":=": TokenType.T_ASSIGN,
-            "!=": TokenType.T_NE,
-            ".": TokenType.T_PERIOD,
-            "(": TokenType.T_LPAREN,
-            ")": TokenType.T_RPAREN,
-            "*": TokenType.T_MUL,
-            "/": TokenType.T_DIV,
-            "+": TokenType.T_PLUS,  # addition
-            "<": TokenType.T_LT,
-            "<=": TokenType.T_LTE,
-            "<>": TokenType.T_NE,
-            "=": TokenType.T_EQ,
-            ">": TokenType.T_GT,
-            ">=": TokenType.T_GTE,
-            "||": TokenType.T_CONCAT,
-        }
-    )
+    SYMBOL_OPERATORS: ClassVar[dict[str, TokenType]] = {
+        "-": TokenType.T_MINUS,  # substraction
+        ",": TokenType.T_COMMA,
+        ";": TokenType.T_SEMICOLON,
+        ":=": TokenType.T_ASSIGN,
+        "!=": TokenType.T_NE,
+        ".": TokenType.T_PERIOD,
+        "(": TokenType.T_LPAREN,
+        ")": TokenType.T_RPAREN,
+        "*": TokenType.T_MUL,
+        "/": TokenType.T_DIV,
+        "+": TokenType.T_PLUS,  # addition
+        "<": TokenType.T_LT,
+        "<=": TokenType.T_LTE,
+        "<>": TokenType.T_NE,
+        "=": TokenType.T_EQ,
+        ">": TokenType.T_GT,
+        ">=": TokenType.T_GTE,
+        "||": TokenType.T_CONCAT,
+    }
 
     # Медленная функция
     def readch(self) -> str:
@@ -206,8 +204,8 @@ class Tokenizer:
         return rv
 
     def advance(self) -> None:
-        self.ch, self.next_ch = (
-            self.next_ch,
+        self.ch, self.peek_ch = (
+            self.peek_ch,
             self.readch(),
         )
 
@@ -223,13 +221,13 @@ class Tokenizer:
             return self.token(TokenType.T_EOF, "")
         # пропускаем пробельные символы
         if self.ch.isspace():
-            while self.next_ch.isspace():
+            while self.peek_ch.isspace():
                 self.advance()
             return self.next_token()
         # идентефикаторы, константы, операторы и ключевые слова
-        if self.ch in self.IDENTIFIER_FIRST_CHAR:
+        if self.ch in self.ID_FIRST_CHAR:
             val = self.ch
-            while self.next_ch in self.IDENTIFIER_CHAR:
+            while self.peek_ch in self.ID_CHAR:
                 self.advance()
                 val += self.ch
             upper = val.upper()
@@ -261,14 +259,14 @@ class Tokenizer:
                     return self.token(TokenType[f"T_{upper}"], val)
             return self.token(TokenType.T_IDENTIFIER, val)
         # бинарные данные хранятся в Неведомой Ебанной Хуйне
-        if self.ch == "0" and self.next_ch.lower() == "x":
+        if self.ch == "0" and self.peek_ch.lower() == "x":
             val = ""
             self.advance()
-            while self.next_ch in self.HEX_CHAR:
+            while self.peek_ch in self.HEX_CHAR:
                 self.advance()
                 val += self.ch.upper()
                 # hex-строки могут разбиваться
-                if self.next_ch == self.NEWLINE_CHAR:
+                if self.peek_ch == self.NEWLINE_CHAR:
                     self.advance()
             if not val:
                 raise Error(
@@ -278,14 +276,14 @@ class Tokenizer:
             return self.token(TokenType.T_HEX_STRING, binascii.unhexlify(val))
         # числа
         if (
-            self.ch == self.MINUS_CHAR and self.next_ch.isnumeric()
+            self.ch == self.MINUS_CHAR and self.peek_ch.isnumeric()
         ) or self.ch.isnumeric():
             val = self.ch
             if self.ch == self.MINUS_CHAR:
                 self.advance()
                 val += self.ch
-            while self.next_ch.isnumeric() or (
-                self.next_ch == self.PERIOD_CHAR and not self.PERIOD_CHAR in val
+            while self.peek_ch.isnumeric() or (
+                self.peek_ch == self.PERIOD_CHAR and not self.PERIOD_CHAR in val
             ):
                 self.advance()
                 val += self.ch
@@ -330,35 +328,35 @@ class Tokenizer:
                 # return self.token(token_type, ast.literal_eval(f'"{val}"'))
                 return self.token(token_type, val)
         # однострочный комментарий
-        if self.ch == self.MINUS_CHAR == self.next_ch:
+        if self.ch == self.MINUS_CHAR == self.peek_ch:
             while self.ch:
                 self.advance()
                 if self.ch == self.NEWLINE_CHAR:
                     break
             return self.next_token()
         # многострочный комментарий
-        if self.ch == self.SLASH_CHAR and self.next_ch == self.ASTERSISK_CHAR:
+        if self.ch == self.SLASH_CHAR and self.peek_ch == self.ASTERSISK_CHAR:
             self.advance()
             while self.ch:
                 self.advance()
                 if (
                     self.ch == self.ASTERSISK_CHAR
-                    and self.next_ch == self.SLASH_CHAR
+                    and self.peek_ch == self.SLASH_CHAR
                 ):
                     self.advance()
                     break
             return self.next_token()
-        # символьные операторы
-        for op, tt in self.SYMBOL_OPERATORS.items():
-            assert 2 >= len(op) > 0
-            if len(op) == 2:
-                if self.ch + self.next_ch != op:
-                    continue
-                self.advance()
-            elif op != self.ch:
-                continue
-            return self.token(tt, op)
-        raise UnexpectedChar(char=self.ch, lineno=self.lineno, colno=self.colno)
+        # символьные операторы обрабаытваем последними
+        op = self.ch
+        while self.peek_ch and op + self.peek_ch in self.SYMBOL_OPERATORS:
+            self.advance()
+            op += self.ch
+        try:
+            return self.token(self.SYMBOL_OPERATORS[op], op)
+        except KeyError as ex:
+            raise UnexpectedChar(
+                char=self.ch, lineno=self.lineno, colno=self.colno
+            ) from ex
 
     def token(self, *args: Any, **kwargs: Any) -> Token:
         return Token(
@@ -370,7 +368,7 @@ class Tokenizer:
         self.ch = None
         self.colno = 0
         self.lineno = 1
-        self.next_ch = self.readch()
+        self.peek_ch = self.readch()
         while t := self.next_token():
             # if t.type in (TokenType.T_WHITE_SPACE, TokenType.T_COMMENT):
             #     continue
@@ -426,6 +424,7 @@ class Parser:
             TokenType.T_IDENTIFIER,
             TokenType.T_DOUBLE_QUOTED_STRING,
             TokenType.T_BACKTICK_STRING,
+            TokenType.T_HEX_STRING,
         ).cur_token.value
 
     def table_identifier(self) -> str:
