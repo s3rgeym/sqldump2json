@@ -7,9 +7,15 @@ Supported DBMS: MySQL, SQL Server, PotsgreSQL and other
 Installation:
 
 ```bash
-# i recommend use pipx instead pip
+# install pipx via your favorite package manager
 pipx install sqldump2json
 ```
+
+For crappy distros like Ubuntu you need to do more steps:
+
+* Install pyenv or asdf-vm.
+* Install latest python version and make it global via pyenv or asdf-vm.
+* Install sqldump2json.
 
 Insert statements are converted to JSON objects on each new line:
 
