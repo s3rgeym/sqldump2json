@@ -517,12 +517,13 @@ class Parser:
 
     def addsub(self) -> Any:
         rv = self.muldiv()
-        while self.peek_token(TokenType.T_PLUS, TokenType.T_MINUS):
-            if self.cur_token.type == TokenType.T_PLUS:
+        while True:
+            if self.peek_token(TokenType.T_PLUS):
                 rv += self.muldiv()
-            else:
+            elif self.peek_token(TokenType.T_MINUS):
                 rv -= self.muldiv()
-        return rv
+            else:
+                return rv
 
     def muldiv(self) -> Any:
         rv = self.primary()
