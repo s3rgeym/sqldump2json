@@ -355,7 +355,9 @@ class Tokenizer:
             return self.token(self.SYMBOL_OPERATORS[op], op)
         except KeyError as ex:
             raise UnexpectedChar(
-                char=self.ch, lineno=self.lineno, colno=self.colno
+                char=self.ch,
+                lineno=self.lineno,
+                colno=self.colno,
             ) from ex
 
     def token(self, *args: Any, **kwargs: Any) -> Token:
