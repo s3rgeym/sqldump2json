@@ -483,17 +483,15 @@ class Parser:
     # Проритет операторов описан здесь:
     # https://learn.microsoft.com/ru-ru/sql/t-sql/language-elements/operator-precedence-transact-sql?view=sql-server-ver16
     # Чем ниже приоритет тем первее вызывается
-    def andop(self) -> Any:
-        rv = self.orop()
-        while self.peek_token(TokenType.T_AND):
-            rv = rv and self.orop()
+    def expr(self) -> Any:
+        rv = self.AND()
+        while self.peek_token(TokenType.T_OR):
+            rv = rv or self.AND()
         return rv
 
-    expr = andop
-
-    def orop(self) -> Any:
+    def AND(self) -> Any:
         rv = self.compare()
-        while self.peek_token(TokenType.T_OR):
+        while self.peek_token(TokenType.T_AND):
             rv = rv and self.compare()
         return rv
 
