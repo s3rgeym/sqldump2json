@@ -254,30 +254,8 @@ class Tokenizer:
                     return self.token(TokenType.T_NULL, None)
                 case "TRUE" | "FALSE":
                     return self.token(TokenType.T_BOOL, val == "TRUE")
-                case (
-                    "ALTER"
-                    | "AND"
-                    | "CREATE"
-                    | "DELETE"
-                    | "EXISTS"
-                    | "FROM"
-                    | "IF"
-                    | "INSERT"
-                    | "INTO"
-                    | "NOT"
-                    | "OR"
-                    | "SELECT"
-                    | "SET"
-                    | "TABLE"
-                    | "UPDATE"
-                    | "USE"
-                    | "VALUES"
-                    | "WHERE"
-                ):
-                    try:
-                        return self.token(TokenType[f"T_{upper}"], val)
-                    except KeyError:
-                        return self.token(TokenType.T_DUMMY, val)
+                case "AND" | "INSERT" | "INTO" | "NOT" | "OR" | "VALUES":
+                    return self.token(TokenType[f"T_{upper}"], val)
             return self.token(TokenType.T_IDENTIFIER, val)
         # бинарные данные хранятся в Неведомой Ебанной Хуйне
         if self.ch == "0" and self.peek_ch.lower() == "x":
