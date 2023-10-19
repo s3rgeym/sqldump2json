@@ -73,7 +73,7 @@ class TokenType(AutoName):
     T_COMMENT = auto()
     T_CONCAT = auto()
     T_CREATE = auto()
-    T_DELETE = auto()
+    # T_DELETE = auto()
     T_DIV = auto()
     T_DOUBLE_QUOTED_STRING = auto()
     T_EMPTY = auto()
@@ -108,11 +108,14 @@ class TokenType(AutoName):
     T_SET = auto()
     T_STRING = auto()
     T_TABLE = auto()
-    T_UPDATE = auto()
-    T_USE = auto()
+    # T_UPDATE = auto()
+    # T_USE = auto()
     T_VALUES = auto()
     T_WHERE = auto()
     T_WHITE_SPACE = auto()
+
+    # Всякие операторы которым мне лень имена выдумывать
+    T_DUMMY = auto()
     ...
 
     def __str__(self) -> str:
@@ -148,7 +151,8 @@ class UnexpectedEnd(Error):
 #     return dict(sorted(d.items(), key=lambda kv: len(kv[0]), reverse=True))
 
 
-# Данный токенайзер не яыляется примером идеального кода, но все работает... и у меня не так много свободного времени чтобы все переписать по уму
+# Данный токенайзер по быстрому проходиться по файлу, считывая его посимвольно
+# Для самых распространенных диалектов работает
 @dataclass
 class Tokenizer:
     fp: typing.TextIO
@@ -168,6 +172,7 @@ class Tokenizer:
     TOKEN_EMPTY: ClassVar[Token] = Token(TokenType.T_EMPTY, "")
     SYMBOL_OPERATORS: ClassVar[dict[str, TokenType]] = {
         "-": TokenType.T_MINUS,  # substraction
+        "-=": TokenType.T_DUMMY,
         ",": TokenType.T_COMMA,
         ";": TokenType.T_SEMICOLON,
         ":=": TokenType.T_ASSIGN,
@@ -177,14 +182,27 @@ class Tokenizer:
         ")": TokenType.T_RPAREN,
         "*": TokenType.T_MUL,
         "/": TokenType.T_DIV,
+        "/=": TokenType.T_DUMMY,
+        "&": TokenType.T_DUMMY,
+        "&=": TokenType.T_DUMMY,
+        "%": TokenType.T_DUMMY,
+        "%=": TokenType.T_DUMMY,
+        "^": TokenType.T_DUMMY,
+        "^=": TokenType.T_DUMMY,
         "+": TokenType.T_PLUS,  # addition
+        "+=": TokenType.T_DUMMY,
         "<": TokenType.T_LT,
         "<=": TokenType.T_LTE,
         "<>": TokenType.T_NE,
         "=": TokenType.T_EQ,
         ">": TokenType.T_GT,
         ">=": TokenType.T_GTE,
+        "|": TokenType.T_DUMMY,
+        "|=": TokenType.T_DUMMY,
         "||": TokenType.T_CONCAT,
+        # Эти специфичны для SQL-сервер
+        "!<": TokenType.T_DUMMY,
+        "!>": TokenType.T_DUMMY,
     }
 
     # Медленная функция
@@ -256,7 +274,10 @@ class Tokenizer:
                     | "VALUES"
                     | "WHERE"
                 ):
-                    return self.token(TokenType[f"T_{upper}"], val)
+                    try:
+                        return self.token(TokenType[f"T_{upper}"], val)
+                    except KeyError:
+                        return self.token(TokenType.T_DUMMY, val)
             return self.token(TokenType.T_IDENTIFIER, val)
         # бинарные данные хранятся в Неведомой Ебанной Хуйне
         if self.ch == "0" and self.peek_ch.lower() == "x":
@@ -541,6 +562,9 @@ class Parser:
             rv = self.expr()
             self.expect_token(TokenType.T_RPAREN)
             return rv
+        # values (default, ...)
+        if self.peek_token(TokenType.T_IDENTIFIER):
+            return None
         return self.expect_token(
             TokenType.T_INT,
             TokenType.T_FLOAT,
@@ -548,6 +572,7 @@ class Parser:
             TokenType.T_NULL,
             TokenType.T_STRING,
             TokenType.T_HEX_STRING,
+            TokenType.T_IDENTIFIER,
         ).cur_token.value
 
     def parse(self) -> None:
