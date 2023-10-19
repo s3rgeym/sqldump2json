@@ -242,6 +242,25 @@ class Tokenizer:
             while self.peek_ch.isspace():
                 self.advance()
             return self.next_token()
+        # пропускаем однострочный комментарий
+        if self.ch == self.MINUS_CHAR == self.peek_ch:
+            while self.ch:
+                self.advance()
+                if self.ch == self.NEWLINE_CHAR:
+                    break
+            return self.next_token()
+        # пропускаем многострочный комментарий
+        if self.ch == self.SLASH_CHAR and self.peek_ch == self.ASTERSISK_CHAR:
+            self.advance()
+            while self.ch:
+                self.advance()
+                if (
+                    self.ch == self.ASTERSISK_CHAR
+                    and self.peek_ch == self.SLASH_CHAR
+                ):
+                    self.advance()
+                    break
+            return self.next_token()
         # идентефикаторы, константы, операторы и ключевые слова
         if self.ch in self.ID_FIRST_CHAR:
             val = self.ch
@@ -326,25 +345,6 @@ class Tokenizer:
                 # val = re.sub(r'(?<!\\)[\'"`]', r"\\\g<0>", val)
                 # return self.token(token_type, ast.literal_eval(f'"{val}"'))
                 return self.token(token_type, val)
-        # однострочный комментарий
-        if self.ch == self.MINUS_CHAR == self.peek_ch:
-            while self.ch:
-                self.advance()
-                if self.ch == self.NEWLINE_CHAR:
-                    break
-            return self.next_token()
-        # многострочный комментарий
-        if self.ch == self.SLASH_CHAR and self.peek_ch == self.ASTERSISK_CHAR:
-            self.advance()
-            while self.ch:
-                self.advance()
-                if (
-                    self.ch == self.ASTERSISK_CHAR
-                    and self.peek_ch == self.SLASH_CHAR
-                ):
-                    self.advance()
-                    break
-            return self.next_token()
         # символьные операторы обрабаытваем последними
         op = self.ch
         while self.peek_ch and op + self.peek_ch in self.SYMBOL_OPERATORS:
