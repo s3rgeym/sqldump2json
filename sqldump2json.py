@@ -435,50 +435,45 @@ class Parser:
             rv += self.cur_token.value + self.quoted_identifier()
         return rv
 
-    def statement(self) -> None:
+    def parse_insert(self) -> None:
         # INSERT INTO tbl (col1, col2) VALUES ('a', 1);
-        if self.peek_token(TokenType.T_INSERT):
-            logging.debug("parse insert statement")
-            self.expect_token(TokenType.T_INTO)
-            table_name = self.table_identifier()
-            # имена колонок опциональны
-            column_names = []
-            if self.peek_token(TokenType.T_LPAREN):
-                while True:
-                    column_names.append(self.quoted_identifier())
-                    if self.peek_token(TokenType.T_RPAREN):
-                        break
-                    # rparen просто для красоты
-                    self.expect_token(TokenType.T_COMMA, TokenType.T_RPAREN)
-            self.expect_token(TokenType.T_VALUES)
-            while self.expect_token(TokenType.T_LPAREN):
-                values = []
-                while True:
-                    values.append(self.expr())
-                    if self.peek_token(TokenType.T_RPAREN):
-                        break
-                    self.expect_token(TokenType.T_COMMA, TokenType.T_RPAREN)
-                json.dump(
-                    {
-                        # "statement": "insert",
-                        "table_name": table_name,
-                        "values": dict(zip(column_names, values))
-                        if column_names
-                        else values,
-                    },
-                    fp=sys.stdout,
-                    ensure_ascii=False,
-                    cls=Base64Encoder,
-                )
-                sys.stdout.write(os.linesep)
-                sys.stdout.flush()
-                if self.peek_token(TokenType.T_COMMA):
-                    continue
-                self.expect_token(TokenType.T_SEMICOLON)
-                return
-        while not self.peek_token(TokenType.T_SEMICOLON):
-            self.advance_token()
-            logging.debug("skip %s", self.cur_token.type)
+        logging.debug("parse insert statement")
+        self.expect_token(TokenType.T_INTO)
+        table_name = self.table_identifier()
+        # имена колонок опциональны
+        column_names = []
+        if self.peek_token(TokenType.T_LPAREN):
+            while True:
+                column_names.append(self.quoted_identifier())
+                if self.peek_token(TokenType.T_RPAREN):
+                    break
+                # rparen просто для красоты
+                self.expect_token(TokenType.T_COMMA, TokenType.T_RPAREN)
+        self.expect_token(TokenType.T_VALUES)
+        while self.expect_token(TokenType.T_LPAREN):
+            values = []
+            while True:
+                values.append(self.expr())
+                if self.peek_token(TokenType.T_RPAREN):
+                    break
+                self.expect_token(TokenType.T_COMMA, TokenType.T_RPAREN)
+            json.dump(
+                {
+                    # "statement": "insert",
+                    "table_name": table_name,
+                    "values": dict(zip(column_names, values))
+                    if column_names
+                    else values,
+                },
+                fp=sys.stdout,
+                ensure_ascii=False,
+                cls=Base64Encoder,
+            )
+            sys.stdout.write(os.linesep)
+            sys.stdout.flush()
+            if self.peek_token(TokenType.T_COMMA):
+                continue
+            self.expect_token(TokenType.T_SEMICOLON)
 
     # Проритет операторов описан здесь:
     # https://learn.microsoft.com/ru-ru/sql/t-sql/language-elements/operator-precedence-transact-sql?view=sql-server-ver16
@@ -557,8 +552,12 @@ class Parser:
         self.tokenizer_it = iter(self.tokenizer)
         self.cur_token = self.next_token = None
         self.advance_token()
-        while not self.peek_token(TokenType.T_EOF):
-            self.statement()
+        while True:
+            if self.peek_token(TokenType.INSERT):
+                self.parse_insert()
+            if self.peek_token(TokenType.EOF):
+                break
+            self.advance_token()            
         logging.info("finished")
 
 
