@@ -474,6 +474,7 @@ class Parser:
             if self.peek_token(TokenType.T_COMMA):
                 continue
             self.expect_token(TokenType.T_SEMICOLON)
+            return
 
     # Проритет операторов описан здесь:
     # https://learn.microsoft.com/ru-ru/sql/t-sql/language-elements/operator-precedence-transact-sql?view=sql-server-ver16
@@ -554,11 +555,16 @@ class Parser:
         self.advance_token()
         while True:
             if self.peek_token(TokenType.T_INSERT):
-                self.parse_insert()
+                try:
+                    self.parse_insert()
+                # CREATE TRIGGER customer_create_date BEFORE INSERT ON customer
+                # 	FOR EACH ROW SET NEW.create_date = NOW();
+                except ParseError as ex:
+                    logging.warn(ex)
             else:
                 if self.peek_token(TokenType.T_EOF):
                     break
-                self.advance_token()            
+                self.advance_token()
         logging.info("finished")
 
 
