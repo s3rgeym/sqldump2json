@@ -16,6 +16,7 @@ For crappy distros like Ubuntu you need to do more steps:
 * Install pyenv or asdf-vm.
 * Install latest python version and make it global via pyenv or asdf-vm.
 * Install sqldump2json.
+* OR use Docker if ur mother is not sl*t.
 
 Insert statements are converted to JSON objects on each new line:
 
@@ -43,7 +44,7 @@ Hex strings are converted to base64:
 sqldump2json -i testdata/dump.sql | tail -4 | head -1 | jq -r '.values[4]' | base64 -d > image.png
 ```
 
-Also supports basic arifmetic and boolean operations (i know it's useless):
+Supports basic arifmetic and boolean operations (i know it's useless):
 
 ```bash
 $ echo 'insert into test (result) values (-2 + 2 * 2);' | sqldump2json
