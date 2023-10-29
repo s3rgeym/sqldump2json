@@ -555,9 +555,10 @@ class Parser:
         while True:
             if self.peek_token(TokenType.T_INSERT):
                 self.parse_insert()
-            if self.peek_token(TokenType.T_EOF):
-                break
-            self.advance_token()            
+            else:
+                if self.peek_token(TokenType.T_EOF):
+                    break
+                self.advance_token()            
         logging.info("finished")
 
 
