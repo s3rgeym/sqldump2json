@@ -10,9 +10,11 @@ Installation:
 
 ```bash
 # install pipx via your favorite package manager
+
+# install from pypi
 pipx install sqldump2json
 
-# install from github
+# install lastet version from github
 pipx install git+https://github.com/s3rgeym/sqldump2json.git
 ```
 
