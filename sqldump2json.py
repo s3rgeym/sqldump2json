@@ -42,11 +42,11 @@ class Color(Enum):
 
 class ColorHandler(logging.StreamHandler):
     COLOR_LEVELS = {
-        logging.DEBUG: Color.BLUE,
-        logging.INFO: Color.GREEN,
+        logging.DEBUG: Color.GREEN,
+        logging.INFO: Color.MAGENTA,
         logging.WARNING: Color.YELLOW,
         logging.ERROR: Color.RED,
-        logging.CRITICAL: Color.MAGENTA,
+        logging.CRITICAL: Color.RED,
     }
 
     fmtr = logging.Formatter("[%(levelname).1s]: %(message)s")
