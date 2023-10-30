@@ -628,9 +628,17 @@ class NameSpace(argparse.Namespace):
 
 def _parse_args(argv: Sequence[str] | None) -> NameSpace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("-i", "--input", default="-", type=argparse.FileType())
     parser.add_argument(
-        "-o", "--output", default="-", type=argparse.FileType("w+")
+        "-i",
+        "--input",
+        default="-",
+        type=argparse.FileType(errors="ignore"),
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        default="-",
+        type=argparse.FileType("w+"),
     )
     parser.add_argument(
         "-d",
