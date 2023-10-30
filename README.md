@@ -6,12 +6,13 @@ Parsing SQL dumps into JSON objects. A tool for administrators, data scientists 
 
 Supported DBMS: MySQL, SQL Server, PotsgreSQL and some other (not all formats).
 
-Installation:
+Installation for normal Arch-based ditros:
 
 ```bash
-# install pipx via your favorite package manager
+# install pipx
+yay -S python-pipx
 
-# install from pypi
+# install package from pypi
 pipx install sqldump2json
 
 # install lastet version from github
