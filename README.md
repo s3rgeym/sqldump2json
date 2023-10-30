@@ -52,7 +52,20 @@ Hex strings are converted to base64:
 sqldump2json -i tests/dump.sql | tail -4 | head -1 | jq -r '.values[4]' | base64 -d > image.png
 ```
 
-Supports basic arifmetic and boolean operations (i know it's useless):
+Values converted to dict only if INSERT contains list of fields:
+
+```sql
+INSERT INTO users (id, name) VALUES (42, 'Vasyan');
+```
+
+Output:
+
+```json
+{"table_name": "users", "values": {"id": 42, "name": "Vasyan"}}
+```
+
+
+Supports basic arifmetic and boolean operations:
 
 ```bash
 $ echo 'insert into test (result) values (-2 + 2 * 2);' | sqldump2json
