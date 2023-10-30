@@ -38,7 +38,7 @@ INSERT INTO users VALUES(DEFAULT, "Semyon", 52 / (4 - 2))
                 # Там фотка этого васяна
                 if first_name == "Mike" and last_name == "Hillyer":
                     self.assertEqual(b"\x89PNG", img_data[:4])
-                    # Убедимся что на фото грязный американский, заплывший жиром куколд бургер-Джо с дилдо в его радужной жопе
+                    # Убедимся что на фото грязный американский, заплывший жиром, куколд бургер-Джо с дилдо в его радужной жопе
                     self.assertEqual(
                         img_data,
                         CUCKOLD_PHOTO.read_bytes(),
