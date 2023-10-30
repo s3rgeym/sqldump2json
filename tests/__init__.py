@@ -10,7 +10,7 @@ class Test(unittest.TestCase):
     def test_inserts(self) -> None:
         sql = """
 INSERT/*lalalala*/INTO users(name,age)VALUES ('Petya', 31),
-('Vasay', 42), ('Semyon', 52 / (4 - 2))
+('Vasay', 42), ('Semyon', 52 / (4 - 2))123
         """
         self.assertEqual(
             [*self.parser.parse(sql)],
