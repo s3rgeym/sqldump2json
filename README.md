@@ -1,12 +1,14 @@
-# README
+# sqldump2json
 
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/sqldump2json)]() [![PyPI - Version](https://img.shields.io/pypi/v/sqldump2json)]() [![Total Downloads](https://static.pepy.tech/badge/sqldump2json)]()
 
-Parsing SQL dumps into JSON objects. A tool for administrators, data scientists and hackers. The dump is not read entirely into RAM, so this utility can be used to process files of any size. And it can even parse corrupted dumps. Use [jq](https://github.com/jqlang/jq) to process JSON (sort, filter and etc).
+Parsing SQL dumps into JSON objects.
+
+A tool for administrators, data scientists and hackers. With this tool you no longer need to import dumps into Databases. You can extract INSERT data as JSON and analyze them with [jq](https://github.com/jqlang/jq). The dump is not read entirely into RAM, so this utility can be used to process files of any size. And it can even parse corrupted dumps.
 
 Supported DBMS: MySQL, SQL Server, PotsgreSQL and some other (not all formats).
 
-Installation for normal Arch-based ditros:
+Installation for normal Arch-based Linux ditros:
 
 ```bash
 # install pipx
@@ -19,7 +21,7 @@ pipx install sqldump2json
 pipx install git+https://github.com/s3rgeym/sqldump2json.git
 ```
 
-For crappy distros like Ubuntu you need to do more steps:
+For other shit like Ubuntu you need to do more steps:
 
 * Install pyenv or asdf-vm.
 * Install latest python version and make it global via pyenv or asdf-vm.
