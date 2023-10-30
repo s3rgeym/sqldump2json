@@ -3,7 +3,9 @@ from pathlib import Path
 
 from sqldump2json import DumpParser
 
-DUMP_FILE = Path(__file__).parent / "dump.sql"
+CUR_DIR = Path(__file__).parent
+DUMP_FILE = CUR_DIR / "dump.sql"
+CUCKOLD_PHOTO = CUR_DIR / "cuckold.png"
 
 
 class Test(unittest.TestCase):
@@ -35,5 +37,11 @@ INSERT INTO users VALUES(DEFAULT, "Semyon", 52 / (4 - 2))
                 first_name, last_name, _, img_data = res["values"][1:5]
                 # Там фотка этого васяна
                 if first_name == "Mike" and last_name == "Hillyer":
-                    return self.assertEqual(b"\x89PNG", img_data[:4])
+                    self.assertEqual(b"\x89PNG", img_data[:4])
+                    # Убедимся что на фото грязный американский, заплывший жиром куколд бургер-Джо с дилдо в его радужной жопе
+                    self.assertEqual(
+                        img_data,
+                        CUCKOLD_PHOTO.read_bytes(),
+                    )
+                    return
         self.fail()
