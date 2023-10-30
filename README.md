@@ -11,6 +11,9 @@ Installation:
 ```bash
 # install pipx via your favorite package manager
 pipx install sqldump2json
+
+# install from github
+pipx install git+https://github.com/s3rgeym/sqldump2json.git
 ```
 
 For crappy distros like Ubuntu you need to do more steps:
