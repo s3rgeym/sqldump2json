@@ -20,7 +20,7 @@ import typing
 from base64 import b64encode
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Any, Iterable, Iterator, Self, Sequence, Type, TypedDict
+from typing import Any, Iterable, Self, Sequence, Type, TypedDict
 
 __author__ = "Sergey M"
 
@@ -49,13 +49,15 @@ class ColorHandler(logging.StreamHandler):
         logging.CRITICAL: Color.MAGENTA,
     }
 
-    fmtr = logging.Formatter("[%(levelname).1s]\t%(message)s")
+    fmtr = logging.Formatter("[%(levelname).1s]: %(message)s")
 
     def format(self, record: logging.LogRecord) -> str:
         message = self.fmtr.format(record)
-        if not self.stream.isatty():
-            return message
-        return f"{self.COLOR_LEVELS.get(record.levelno)}{message}{Color.RESET}"
+        if self.stream.isatty() and (
+            col := self.COLOR_LEVELS.get(record.levelno)
+        ):
+            return f"{col}{message}{Color.RESET}"
+        return message
 
 
 logger = logging.getLogger(__name__)
@@ -422,7 +424,6 @@ class SQLTokenizer:
         )
 
     def tokenize(self) -> Iterable[Token]:
-        # у StringIO его нет
         getattr(self.input, "seekable", lambda: 0)() and self.input.seek(0)
         self.ch = None
         self.colno = 0
@@ -436,15 +437,7 @@ class SQLTokenizer:
             if t.type == TokenType.T_EOF:
                 break
 
-    # def __iter__(self) -> typing.Self:
-    #     self.tokenize_it = iter(self.tokenize())
-    #     return self
-
-    # def __next__(self) -> Token:
-    #     return next(self.tokenize_it)
-
-    def __iter__(self) -> Iterator[Token]:
-        yield from self.tokenize()
+    __iter__ = tokenize
 
 
 class ParseError(Error):
@@ -603,7 +596,11 @@ class DumpParser:
             TokenType.T_IDENTIFIER,
         ).cur_token.value
 
-    def parse(self, source: typing.TextIO | str) -> Iterable[InsertValues]:
+    def parse(
+        self,
+        source: typing.TextIO | str,
+        ignore_errors: bool = True,
+    ) -> Iterable[InsertValues]:
         self.tokenizer = self.tokenizer_class(input=source)
         self.tokenizer_it = iter(self.tokenizer)
         self.cur_token = self.next_token = None
@@ -615,6 +612,8 @@ class DumpParser:
                 # CREATE TRIGGER customer_create_date BEFORE INSERT ON customer
                 # 	FOR EACH ROW SET NEW.create_date = NOW();
                 except ParseError as ex:
+                    if not ignore_errors:
+                        raise ex
                     logger.warning(ex)
                 continue
             self.advance_token()

@@ -1,3 +1,6 @@
 __pycache__
 /dist
+
+# Эти файлы я для теста использовал
 /image.png
+/out.txt
