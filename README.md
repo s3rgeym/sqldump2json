@@ -64,7 +64,6 @@ Output:
 {"table_name": "users", "values": {"id": 42, "name": "Vasyan"}}
 ```
 
-
 Supports basic arifmetic and boolean operations:
 
 ```bash
