@@ -10,6 +10,7 @@
 """Parse SQL Dumps to JSON Objects"""
 import argparse
 import binascii
+import io
 import json
 import logging
 import os
@@ -19,10 +20,55 @@ import typing
 from base64 import b64encode
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Any, ClassVar, Iterable, Iterator, Self, Sequence
+from typing import (
+    Any,
+    ClassVar,
+    Iterable,
+    Iterator,
+    Self,
+    Sequence,
+    Type,
+    TypedDict,
+)
 
 __author__ = "Sergey M"
 
+
+class Color(Enum):
+    RESET = 0
+    BLACK = 30
+    RED = auto()
+    GREEN = auto()
+    YELLOW = auto()
+    BLUE = auto()
+    MAGENTA = auto()
+    CYAN = auto()
+    WHITE = auto()
+
+    def __str__(self) -> str:
+        return f"\033[{self.value}m"
+
+
+class ColorHandler(logging.StreamHandler):
+    COLOR_LEVELS = {
+        logging.DEBUG: Color.BLUE,
+        logging.INFO: Color.GREEN,
+        logging.WARNING: Color.YELLOW,
+        logging.ERROR: Color.RED,
+        logging.CRITICAL: Color.MAGENTA,
+    }
+
+    fmtr = logging.Formatter("%(levelname)s %(message)s")
+
+    def format(self, record: logging.LogRecord) -> str:
+        message = self.fmtr.format(record)
+        if not self.stream.isatty():
+            return message
+        return f"{self.COLOR_LEVELS.get(record.levelno)}{message}{Color.RESET}"
+
+
+logger = logging.getLogger(__name__)
+logger.addHandler(ColorHandler())
 
 # При наследовании от просто type:
 # TypeError: metaclass conflict: the metaclass of a derived class must be a (non-strict) subclass of the metaclasses of all its bases
@@ -154,8 +200,8 @@ class UnexpectedEnd(Error):
 # Данный токенайзер по быстрому проходиться по файлу, считывая его посимвольно
 # Для самых распространенных диалектов работает
 @dataclass
-class Tokenizer:
-    fp: typing.TextIO
+class SQLTokenizer:
+    input: typing.TextIO | str
     # ch: str | None = field(default=None, init=False)
     ASTERSISK_CHAR: ClassVar[str] = "*"
     BACKTICK_CHAR: ClassVar[str] = "`"
@@ -205,9 +251,13 @@ class Tokenizer:
         "!>": TokenType.T_DUMMY,
     }
 
+    def __post_init__(self) -> None:
+        if isinstance(self.input, str):
+            self.input = io.StringIO(self.input)
+
     # Медленная функция
     def readch(self) -> str:
-        c = self.fp.read(1)
+        c = self.input.read(1)
         if c == self.NEWLINE_CHAR:
             self.lineno += 1
             self.colno = 0
@@ -217,8 +267,8 @@ class Tokenizer:
 
     # TODO: этот метод можно было бы использовать в других реализациях парсеров. В текущей есть ограничение, связанное с тем, что в пайпах нельзя сикать (можно использовать буфер, но мне лень переписывать).
     def peekch(self, n: int = 1) -> str:
-        rv = self.fp.read(n)
-        self.fp.seek(self.fp.tell() - len(rv))
+        rv = self.input.read(n)
+        self.input.seek(self.input.tell() - len(rv))
         return rv
 
     def advance(self) -> None:
@@ -365,7 +415,8 @@ class Tokenizer:
         )
 
     def tokenize(self) -> Iterable[Token]:
-        self.fp.seekable() and self.fp.seek(0)
+        # у StringIO его нет
+        getattr(self.input, "seekable", lambda: 0)() and self.input.seek(0)
         self.ch = None
         self.colno = 0
         self.lineno = 1
@@ -373,7 +424,7 @@ class Tokenizer:
         while t := self.next_token():
             # if t.type in (TokenType.T_WHITE_SPACE, TokenType.T_COMMENT):
             #     continue
-            logging.debug("token: %s at %d,%d", t.type, t.lineno, t.colno)
+            logger.debug("token: %s at %d,%d", t.type, t.lineno, t.colno)
             yield t
             if t.type == TokenType.T_EOF:
                 break
@@ -393,9 +444,22 @@ class ParseError(Error):
     pass
 
 
+class InsertValues(TypedDict):
+    table_name: str
+    values: dict[str, Any] | list[Any]
+
+
+def cut(s: str, n: int, dots: str = "...") -> str:
+    """
+    >>> cut("Привет, мир!", 10)
+    'Привет,...'
+    """
+    return s[: n - len(dots)] + ["", dots][len(s) > n]
+
+
 @dataclass
-class Parser:
-    tokenizer: Tokenizer
+class DumpParser:
+    tokenizer_class: Type = SQLTokenizer
 
     def advance_token(self) -> None:
         self.cur_token, self.next_token = (
@@ -415,7 +479,7 @@ class Parser:
     def expect_token(self, *expected: TokenType) -> Self:
         if not self.peek_token(*expected):
             raise ParseError(
-                f"unexpected token {self.next_token.type} at line {self.next_token.lineno} and column {self.next_token.colno}; expected: {', '.join(map(str, expected))}"
+                f"unexpected {self.next_token.type} at {self.next_token.lineno}:{self.next_token.colno}"
             )
         # Когда нечего вернуть, то лучше всего возвращать self
         return self
@@ -435,9 +499,9 @@ class Parser:
             rv += self.cur_token.value + self.quoted_identifier()
         return rv
 
-    def parse_insert(self) -> None:
+    def parse_insert(self) -> Iterable[InsertValues]:
         # INSERT INTO tbl (col1, col2) VALUES ('a', 1);
-        logging.debug("parse insert statement")
+        logger.debug("parse insert statement")
         self.expect_token(TokenType.T_INTO)
         table_name = self.table_identifier()
         # имена колонок опциональны
@@ -457,20 +521,12 @@ class Parser:
                 if self.peek_token(TokenType.T_RPAREN):
                     break
                 self.expect_token(TokenType.T_COMMA, TokenType.T_RPAREN)
-            json.dump(
-                {
-                    # "statement": "insert",
-                    "table_name": table_name,
-                    "values": dict(zip(column_names, values))
-                    if column_names
-                    else values,
-                },
-                fp=sys.stdout,
-                ensure_ascii=False,
-                cls=Base64Encoder,
-            )
-            sys.stdout.write(os.linesep)
-            sys.stdout.flush()
+            yield {
+                "table_name": table_name,
+                "values": dict(zip(column_names, values))
+                if column_names
+                else values.copy(),
+            }
             if self.peek_token(TokenType.T_COMMA):
                 continue
             self.expect_token(TokenType.T_SEMICOLON)
@@ -549,36 +605,36 @@ class Parser:
             TokenType.T_IDENTIFIER,
         ).cur_token.value
 
-    def parse(self) -> None:
+    def parse(self, source: typing.TextIO | str) -> Iterable[InsertValues]:
+        self.tokenizer = self.tokenizer_class(input=source)
         self.tokenizer_it = iter(self.tokenizer)
         self.cur_token = self.next_token = None
         self.advance_token()
-        while True:
+        while not self.peek_token(TokenType.T_EOF):
             if self.peek_token(TokenType.T_INSERT):
                 try:
-                    self.parse_insert()
+                    yield from self.parse_insert()
                 # CREATE TRIGGER customer_create_date BEFORE INSERT ON customer
                 # 	FOR EACH ROW SET NEW.create_date = NOW();
                 except ParseError as ex:
-                    logging.warn(ex)
-            else:
-                if self.peek_token(TokenType.T_EOF):
-                    break
-                self.advance_token()
-        logging.info("finished")
+                    logger.warning(ex)
+                continue
+            self.advance_token()
+        logger.info("finished")
 
 
 class NameSpace(argparse.Namespace):
     input: typing.TextIO
+    output: typing.TextIO
     debug: bool
 
 
 def _parse_args(argv: Sequence[str] | None) -> NameSpace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("-i", "--input", default="-", type=argparse.FileType())
-    # parser.add_argument(
-    #     "-o", "--output", default="-", type=argparse.FileType("w+")
-    # )
+    parser.add_argument(
+        "-o", "--output", default="-", type=argparse.FileType("w+")
+    )
     parser.add_argument(
         "-d",
         "--debug",
@@ -592,11 +648,18 @@ def _parse_args(argv: Sequence[str] | None) -> NameSpace:
 
 def main(argv: Sequence[str] | None = None) -> None:
     args = _parse_args(argv)
-    if args.debug:
-        logging.basicConfig(level=logging.DEBUG)
-    parser = Parser(tokenizer=Tokenizer(args.input))
+    logger.setLevel(level=(logging.WARNING, logging.DEBUG)[args.debug])
+    parser = DumpParser()
     try:
-        parser.parse()
+        for v in parser.parse(args.input):
+            json.dump(
+                v,
+                fp=args.output,
+                ensure_ascii=False,
+                cls=Base64Encoder,
+            )
+            args.output.write(os.linesep)
+            args.output.flush()
     except KeyboardInterrupt:
         print("\nbye!", file=sys.stderr)
 
