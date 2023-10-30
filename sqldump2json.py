@@ -20,16 +20,7 @@ import typing
 from base64 import b64encode
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import (
-    Any,
-    ClassVar,
-    Iterable,
-    Iterator,
-    Self,
-    Sequence,
-    Type,
-    TypedDict,
-)
+from typing import Any, Iterable, Iterator, Self, Sequence, Type, TypedDict
 
 __author__ = "Sergey M"
 
@@ -58,7 +49,7 @@ class ColorHandler(logging.StreamHandler):
         logging.CRITICAL: Color.MAGENTA,
     }
 
-    fmtr = logging.Formatter("%(levelname)s %(message)s")
+    fmtr = logging.Formatter("[%(levelname).1s]\t%(message)s")
 
     def format(self, record: logging.LogRecord) -> str:
         message = self.fmtr.format(record)
@@ -164,6 +155,10 @@ class TokenType(AutoName):
     T_DUMMY = auto()
     ...
 
+    # Ошибки
+    T_UNEXPECTED_CHAR = auto()
+    T_INVALID_TOKEN = auto()
+
     def __str__(self) -> str:
         return self.value
 
@@ -173,6 +168,23 @@ class Token(typing.NamedTuple):
     value: Any
     lineno: int = -1
     colno: int = -1
+
+    @property
+    def repr_value(self) -> Any:
+        return (
+            cut(self.value, 31) if isinstance(self.value, str) else self.value
+        )
+
+    def __repr__(self) -> str:
+        return f"token {self.repr_value!r} ({self.type}) at line {self.lineno} and column {self.colno}"
+
+
+def cut(s: str, n: int, dots: str = "...") -> str:
+    """
+    >>> cut("Привет, мир!", 10)
+    'Привет,...'
+    """
+    return s[: n - len(dots)] + ["", dots][len(s) > n]
 
 
 class Error(Exception):
@@ -199,24 +211,21 @@ class UnexpectedEnd(Error):
 
 # Данный токенайзер по быстрому проходиться по файлу, считывая его посимвольно
 # Для самых распространенных диалектов работает
-@dataclass
 class SQLTokenizer:
-    input: typing.TextIO | str
-    # ch: str | None = field(default=None, init=False)
-    ASTERSISK_CHAR: ClassVar[str] = "*"
-    BACKTICK_CHAR: ClassVar[str] = "`"
-    DOUBLE_QUOTE_CHAR: ClassVar[str] = '"'
-    ESCAPE_CHAR: ClassVar[str] = "\\"
-    HEX_CHAR: ClassVar[str] = string.hexdigits
-    MINUS_CHAR: ClassVar[str] = "-"
-    ID_FIRST_CHAR: ClassVar[str] = "@" + string.ascii_letters + "_"
-    ID_CHAR: ClassVar[str] = ID_FIRST_CHAR + string.digits
-    NEWLINE_CHAR: ClassVar[str] = "\n"
-    PERIOD_CHAR: ClassVar[str] = "."
-    QUOTE_CHAR: ClassVar[str] = "'"
-    SLASH_CHAR: ClassVar[str] = "/"
-    TOKEN_EMPTY: ClassVar[Token] = Token(TokenType.T_EMPTY, "")
-    SYMBOL_OPERATORS: ClassVar[dict[str, TokenType]] = {
+    ASTERSISK_CHAR = "*"
+    BACKTICK_CHAR = "`"
+    DOUBLE_QUOTE_CHAR = '"'
+    ESCAPE_CHAR = "\\"
+    HEX_CHAR = string.hexdigits
+    MINUS_CHAR = "-"
+    ID_FIRST_CHAR = "@" + string.ascii_letters + "_"
+    ID_CHAR = ID_FIRST_CHAR + string.digits
+    NEWLINE_CHAR = "\n"
+    PERIOD_CHAR = "."
+    QUOTE_CHAR = "'"
+    SLASH_CHAR = "/"
+    TOKEN_EMPTY = Token(TokenType.T_EMPTY, "")
+    SYMBOL_OPERATORS: dict[str, TokenType] = {
         "-": TokenType.T_MINUS,  # substraction
         "-=": TokenType.T_DUMMY,
         ",": TokenType.T_COMMA,
@@ -251,9 +260,8 @@ class SQLTokenizer:
         "!>": TokenType.T_DUMMY,
     }
 
-    def __post_init__(self) -> None:
-        if isinstance(self.input, str):
-            self.input = io.StringIO(self.input)
+    def __init__(self, input: io.TextIOBase | str) -> None:
+        self.input = io.StringIO(input) if isinstance(input, str) else input
 
     # Медленная функция
     def readch(self) -> str:
@@ -337,9 +345,11 @@ class SQLTokenizer:
                 if self.peek_ch == self.NEWLINE_CHAR:
                     self.advance()
             if not val:
-                raise Error(
-                    f"invalid hex string at line {self.token_lineno} and column {self.token_colno}"
-                )
+                # Я пришел к выводу, что кидать ошибки не стоит, так тогда нельзя игнорировать различного рода ошибки
+                # raise Error(
+                #     f"invalid hex string at line {self.token_lineno} and column {self.token_colno}"
+                # )
+                return self.token(TokenType.T_INVALID_TOKEN)
             # hex string => bytes
             return self.token(TokenType.T_HEX_STRING, binascii.unhexlify(val))
         # числа
@@ -372,7 +382,8 @@ class SQLTokenizer:
                 while True:
                     self.advance()
                     if not self.ch:
-                        raise UnexpectedEnd(f"expected: {quote_char!r}")
+                        # Незакрытые кавычки
+                        return self.token(TokenType.T_INVALID_TOKEN, val)
                     if self.ch == quote_char:
                         break
                     if self.ch == self.ESCAPE_CHAR:
@@ -403,11 +414,7 @@ class SQLTokenizer:
         try:
             return self.token(self.SYMBOL_OPERATORS[op], op)
         except KeyError as ex:
-            raise UnexpectedChar(
-                char=self.ch,
-                lineno=self.lineno,
-                colno=self.colno,
-            ) from ex
+            return self.token(TokenType.T_UNEXPECTED_CHAR, self.ch)
 
     def token(self, *args: Any, **kwargs: Any) -> Token:
         return Token(
@@ -424,7 +431,7 @@ class SQLTokenizer:
         while t := self.next_token():
             # if t.type in (TokenType.T_WHITE_SPACE, TokenType.T_COMMENT):
             #     continue
-            logger.debug("token: %s at %d,%d", t.type, t.lineno, t.colno)
+            logger.debug(t)
             yield t
             if t.type == TokenType.T_EOF:
                 break
@@ -449,14 +456,6 @@ class InsertValues(TypedDict):
     values: dict[str, Any] | list[Any]
 
 
-def cut(s: str, n: int, dots: str = "...") -> str:
-    """
-    >>> cut("Привет, мир!", 10)
-    'Привет,...'
-    """
-    return s[: n - len(dots)] + ["", dots][len(s) > n]
-
-
 @dataclass
 class DumpParser:
     tokenizer_class: Type = SQLTokenizer
@@ -478,9 +477,7 @@ class DumpParser:
 
     def expect_token(self, *expected: TokenType) -> Self:
         if not self.peek_token(*expected):
-            raise ParseError(
-                f"unexpected {self.next_token.type} at {self.next_token.lineno}:{self.next_token.colno}"
-            )
+            raise ParseError(f"unexpected: {self.next_token}")
         # Когда нечего вернуть, то лучше всего возвращать self
         return self
 
@@ -601,6 +598,7 @@ class DumpParser:
             TokenType.T_BOOL,
             TokenType.T_NULL,
             TokenType.T_STRING,
+            TokenType.T_DOUBLE_QUOTED_STRING,  # В MySQL можно
             TokenType.T_HEX_STRING,
             TokenType.T_IDENTIFIER,
         ).cur_token.value

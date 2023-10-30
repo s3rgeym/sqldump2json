@@ -1,8 +1,8 @@
 # README
 
-Parse SQL Dumps to JSON Objects. Tool for Administrators, Data Scientists and Hackers. The dump is not read entirely into RAM, so this utility can be used to process very huge files.
+Parsing SQL dumps into JSON objects. A tool for administrators, data scientists and hackers. The dump is not read entirely into RAM, so this utility can be used to process files of any size. And it can even parse corrupted dumps.
 
-Supported DBMS: MySQL, SQL Server, PotsgreSQL and other
+Supported DBMS: MySQL, SQL Server, PotsgreSQL and some other (not all formats).
 
 Installation:
 
@@ -16,7 +16,7 @@ For crappy distros like Ubuntu you need to do more steps:
 * Install pyenv or asdf-vm.
 * Install latest python version and make it global via pyenv or asdf-vm.
 * Install sqldump2json.
-* OR use Docker if ur mother is not sl*t.
+* OR use Docker.
 
 Insert statements are converted to JSON objects on each new line:
 
