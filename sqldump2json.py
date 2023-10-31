@@ -43,8 +43,8 @@ class Color(Enum):
 
 class ColorHandler(logging.StreamHandler):
     COLOR_LEVELS = {
-        logging.DEBUG: Color.GREEN,
-        logging.INFO: Color.WHITE,
+        logging.DEBUG: Color.CYAN,
+        logging.INFO: Color.GREEN,
         logging.WARNING: Color.YELLOW,
         logging.ERROR: Color.RED,
         logging.CRITICAL: Color.MAGENTA,
@@ -123,7 +123,7 @@ class TokenType(AutoName):
     T_HEX_STRING = auto()
     T_IDENTIFIER = auto()
     T_INSERT = auto()
-    T_INT = auto()
+    T_INTEGER = auto()
     T_INTO = auto()
     T_LPAREN = auto()
     T_LT = auto()  # less than
@@ -396,7 +396,7 @@ class SQLTokenizer:
             return (
                 self.token(TokenType.T_FLOAT, float(val))
                 if self.PERIOD_CHAR in val
-                else self.token(TokenType.T_INT, int(val))
+                else self.token(TokenType.T_INTEGER, int(val))
             )
         # строки с разными типами кавычек
         for quote_char, token_type in [
@@ -566,7 +566,7 @@ class DumpParser:
         if self.peek_token(TokenType.T_IDENTIFIER):
             return None
         return self.expect_token(
-            TokenType.T_INT,
+            TokenType.T_INTEGER,
             TokenType.T_FLOAT,
             TokenType.T_BOOL,
             TokenType.T_NULL,
@@ -593,7 +593,7 @@ class DumpParser:
 
     def parse_insert(self) -> Iterable[InsertValues]:
         # INSERT INTO tbl (col1, col2) VALUES ('a', 1);
-        logger.info("parse insert")
+        logger.debug("parse insert values")
         self.expect_token(TokenType.T_INTO)
         table_name = self.table_identifier()
         logger.debug(f"{table_name=}")
@@ -636,7 +636,7 @@ class DumpParser:
     def parse_create_table(self) -> None:
         # https://www.postgresql.org/docs/current/sql-createtable.html
         # https://dev.mysql.com/doc/refman/8.0/en/create-table.html
-        logger.info("parse create table")
+        logger.debug("parse create table")
         if self.peek_token(TokenType.T_IF):
             self.expect_token(TokenType.T_NOT)
             self.expect_token(TokenType.T_EXISTS)
@@ -661,7 +661,7 @@ class DumpParser:
             # Формально синтаксис проверяем
             while not self.peek_token(TokenType.T_COMMA):
                 if self.peek_token(TokenType.T_RPAREN):
-                    logger.info(
+                    logger.debug(
                         "%r: %r",
                         table_name,
                         self.table_fields[table_name],
@@ -697,7 +697,6 @@ class DumpParser:
                 elif self.peek_token(TokenType.T_INSERT):
                     yield from self.parse_insert()
                 else:
-                    logger.debug("skip: %s", self.cur_token)
                     self.advance_token()
             except ParseError as ex:
                 if not ignore_errors:
@@ -724,7 +723,7 @@ def _parse_args(argv: Sequence[str] | None) -> NameSpace:
         "--input",
         default="-",
         help="input file",
-        type=argparse.FileType(errors="replace"),
+        type=argparse.FileType(errors="ignore"),
     )
     parser.add_argument(
         "-o",
@@ -760,7 +759,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         logger.setLevel(logging.DEBUG)
     parser = DumpParser()
     try:
-        for v in parser.parse(args.input, ignore_errors=args.fail_on_error):
+        for v in parser.parse(args.input, ignore_errors=not args.fail_on_error):
             # json.dump(
             #     v,
             #     fp=sys.stdout,
