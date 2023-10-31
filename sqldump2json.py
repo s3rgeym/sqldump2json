@@ -614,8 +614,7 @@ class DumpParser:
                     break
                 self.expect_token(TokenType.T_COMMA)
             column_names = column_names or self.table_fields[table_name]
-            # logger.debug(f"{column_names=}")
-            if len(column_names) != len(values):
+            if column_names and len(column_names) != len(values):
                 raise ParseError(
                     "missmatch number of column names and number of values"
                 )
@@ -658,7 +657,6 @@ class DumpParser:
                 TokenType.T_UNIQUE,
             ):
                 column_name = self.quoted_identifier()
-                logger.debug(f"{column_name=}")
                 self.table_fields[table_name].append(column_name)
             # Формально синтаксис проверяем
             while not self.peek_token(TokenType.T_COMMA):
