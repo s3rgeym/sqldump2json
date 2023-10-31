@@ -43,8 +43,8 @@ class Color(Enum):
 
 class ColorHandler(logging.StreamHandler):
     COLOR_LEVELS = {
-        logging.DEBUG: Color.CYAN,
-        logging.INFO: Color.GREEN,
+        logging.DEBUG: Color.GREEN,
+        logging.INFO: Color.WHITE,
         logging.WARNING: Color.YELLOW,
         logging.ERROR: Color.RED,
         logging.CRITICAL: Color.MAGENTA,
@@ -711,31 +711,47 @@ class NameSpace(argparse.Namespace):
     input: typing.TextIO
     output: typing.TextIO
     debug: bool
+    fail_on_error: bool
 
 
 def _parse_args(argv: Sequence[str] | None) -> NameSpace:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
     parser.add_argument(
         "-i",
         "--input",
         default="-",
+        help="input file",
         type=argparse.FileType(errors="replace"),
     )
     parser.add_argument(
         "-o",
         "--output",
         default="-",
+        help="output file",
         type=argparse.FileType("w+"),
     )
     parser.add_argument(
         "-d",
         "--debug",
-        help="show debug messages",
+        help="be more verbosity",
+        default=False,
+        action=argparse.BooleanOptionalAction,
+    )
+    parser.add_argument(
+        "--fail-on-error",
+        help="not ignore parse errors",
         default=False,
         action=argparse.BooleanOptionalAction,
     )
     args = parser.parse_args(argv, namespace=NameSpace())
     return args
+
+
+# def str2bool(v: str) -> bool:
+#     return v.lower() in ("yes", "true", "t", "1", "on")
 
 
 def main(argv: Sequence[str] | None = None) -> None:
@@ -744,7 +760,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         logger.setLevel(logging.DEBUG)
     parser = DumpParser()
     try:
-        for v in parser.parse(args.input):
+        for v in parser.parse(args.input, ignore_errors=args.fail_on_error):
             # json.dump(
             #     v,
             #     fp=sys.stdout,
@@ -762,6 +778,8 @@ def main(argv: Sequence[str] | None = None) -> None:
             )
             args.output.write(os.linesep)
             args.output.flush()
+    except ParseError as ex:
+        logger.fatal(ex)
     except KeyboardInterrupt:
         print("\nbye!", file=sys.stderr)
 
