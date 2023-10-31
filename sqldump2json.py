@@ -784,7 +784,7 @@ def str_to_number(s: str) -> int:
     # >>> str_to_number('131,072 Kbytes')
     # 134217728
     units = ["k", "m", "g"]
-    rv, unit, *_ = re.findall(r"\d[\d,]*|[a-z]", s, re.I) + [""]
+    rv, unit, *_ = re.findall(r"\d(?:,?\d+)*|[a-z]", s, re.I) + [""]
     return int(rv.replace(",", "")) * (
         1 << abs(~units.index(unit.lower())) * 10 if unit else 1
     )
