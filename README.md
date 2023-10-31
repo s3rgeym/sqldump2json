@@ -30,11 +30,10 @@ For other shit like Ubuntu you need to do more steps:
 
 ## CLI
 
-Usage:
+Help:
 
 ```bash
 sqldump2json -h
-sqldump2json -i /path/to/dump.sql
 ```
 
 Values are converted to dict only if the `INSERT` contains a list of fields or the fields are declared in `CREATE TABLE`:
