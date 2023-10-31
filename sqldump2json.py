@@ -10,7 +10,12 @@
 """Parse SQL Dumps to JSON Objects"""
 import argparse
 import binascii
+
+# from collections import defaultdict
+import dataclasses
+import functools
 import io
+import itertools
 import json
 import logging
 import os
@@ -18,7 +23,6 @@ import string
 import sys
 import typing
 from base64 import b64encode
-from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum, auto
 from typing import Any, Iterable, Self, Sequence, Type, TypedDict
@@ -265,29 +269,34 @@ class SQLTokenizer:
         "!>": TokenType.T_DUMMY,
     }
 
-    def __init__(self, input: io.TextIOBase | str) -> None:
-        self.input = io.StringIO(input) if isinstance(input, str) else input
+    def __init__(
+        self,
+        source: io.TextIOBase | str,
+        buffer_size: int = -1,  # Учтите, что по дефолту весь файл читается в память
+    ) -> None:
+        self.chars_iter = self.read_chars(
+            io.StringIO(source) if isinstance(source, str) else source,
+            buffer_size,
+        )
 
     # Медленная функция
-    def readch(self) -> str:
-        c = self.input.read(1)
-        if c == self.NEWLINE_CHAR:
-            self.lineno += 1
-            self.colno = 0
-        elif c:
-            self.colno += 1
-        return c
-
-    # TODO: этот метод можно было бы использовать в других реализациях парсеров. В текущей есть ограничение, связанное с тем, что в пайпах нельзя сикать (можно использовать буфер, но мне лень переписывать).
-    def peekch(self, n: int = 1) -> str:
-        rv = self.input.read(n)
-        self.input.seek(self.input.tell() - len(rv))
-        return rv
+    def read_chars(self, fp: io.TextIOBase, buffer_size: int) -> Iterable[str]:
+        # Может возникнуть ситуация, когда потребуется пропустить N bytes,
+        # поэтому `fp.seek(0)`` не нужен
+        for c in itertools.chain.from_iterable(
+            iter(functools.partial(fp.read, buffer_size), "")
+        ):
+            if c == self.NEWLINE_CHAR:
+                self.lineno += 1
+                self.colno = 0
+            elif c:
+                self.colno += 1
+            yield c
 
     def advance(self) -> None:
         self.ch, self.peek_ch = (
             self.peek_ch,
-            self.readch(),
+            next(self.chars_iter, ""),
         )
 
     def next_token(self) -> Token:
@@ -452,11 +461,10 @@ class SQLTokenizer:
         )
 
     def tokenize(self) -> Iterable[Token]:
-        getattr(self.input, "seekable", lambda: 0)() and self.input.seek(0)
         self.ch = None
         self.colno = 0
         self.lineno = 1
-        self.peek_ch = self.readch()
+        self.peek_ch = next(self.chars_iter)
         while tok := self.next_token():
             yield tok
             if tok.type == TokenType.T_EOF:
@@ -480,11 +488,14 @@ class InsertValues(TypedDict):
 
 @dataclass
 class DumpParser:
+    _: dataclasses.KW_ONLY
+    ignore_errors: bool = True
     tokenizer_class: Type = SQLTokenizer
 
     def advance_token(self) -> None:
         self.cur_token, self.next_token = (
             self.next_token,
+            # Этот пустой токен тупо костыль, но альтернативу ему я не придумал
             next(self.tokenizer_it, Token(TokenType.T_EMPTY)),
         )
 
@@ -561,8 +572,6 @@ class DumpParser:
             rv = self.expr()
             self.expect_token(TokenType.T_RPAREN)
             return rv
-        # TODO: _binary '<escaped characters>'
-        # https://dev.mysql.com/doc/refman/8.0/en/charset-introducer.html
         if self.peek_token(TokenType.T_IDENTIFIER):
             return None
         return self.expect_token(
@@ -606,6 +615,7 @@ class DumpParser:
                     break
                 self.expect_token(TokenType.T_COMMA)
         self.expect_token(TokenType.T_VALUES)
+        # counter = 0
         while self.expect_token(TokenType.T_LPAREN):
             values = []
             while True:
@@ -613,7 +623,7 @@ class DumpParser:
                 if self.peek_token(TokenType.T_RPAREN):
                     break
                 self.expect_token(TokenType.T_COMMA)
-            column_names = column_names or self.table_fields[table_name]
+            column_names = self.table_fields.get(table_name, column_names)
             if column_names and len(column_names) != len(values):
                 raise ParseError(
                     "missmatch number of column names and number of values"
@@ -624,6 +634,7 @@ class DumpParser:
                 if column_names
                 else values.copy(),
             }
+            # counter += 1
             if self.peek_token(TokenType.T_COMMA):
                 continue
             self.expect_token(TokenType.T_SEMICOLON)
@@ -643,6 +654,8 @@ class DumpParser:
         table_name = self.table_identifier()
         logger.debug(f"{table_name=}")
         self.expect_token(TokenType.T_LPAREN)
+        # помним, что в дампе может быть несколько таблиц с одинаковым именем
+        self.table_fields[table_name] = []
         while True:
             # Я не все скорее всего перечислил ключевые слова для объявления индексов отдельно
             if not self.peek_token(
@@ -677,17 +690,20 @@ class DumpParser:
                     self.advance_token()
 
     def parse(
-        self,
-        source: typing.TextIO | str,
-        ignore_errors: bool = True,
+        self, source: typing.TextIO | str, buffer_size: int = 4096
     ) -> Iterable[InsertValues]:
-        self.tokenizer = self.tokenizer_class(input=source)
+        logger.debug(
+            "ignore parse errors: %s", ["off", "on"][self.ignore_errors]
+        )
+        self.tokenizer = self.tokenizer_class(source, buffer_size)
         self.tokenizer_it = iter(self.tokenizer)
         self.next_token = Token(TokenType.T_EMPTY)
         # Сделает текущий пустым
         self.advance_token()
         # Используем list так как важен порядок объявления колонок
-        self.table_fields = defaultdict(list)
+        # Я не учел, что можно объявить несколько таблиц с одинаковым именем в разных неймспейсах
+        # self.table_fields = defaultdict(list)
+        self.table_fields = {}
         while not self.peek_token(TokenType.T_EOF, TokenType.T_EMPTY):
             try:
                 if self.peek_token(TokenType.T_CREATE) and self.peek_token(
@@ -699,7 +715,7 @@ class DumpParser:
                 else:
                     self.advance_token()
             except ParseError as ex:
-                if not ignore_errors:
+                if not self.ignore_errors:
                     raise ex
                 logger.warning(ex)
 
@@ -711,6 +727,7 @@ class NameSpace(argparse.Namespace):
     output: typing.TextIO
     debug: bool
     fail_on_error: bool
+    buffer_size: int
 
 
 def _parse_args(argv: Sequence[str] | None) -> NameSpace:
@@ -735,9 +752,17 @@ def _parse_args(argv: Sequence[str] | None) -> NameSpace:
     parser.add_argument(
         "-d",
         "--debug",
-        help="be more verbosity",
+        help="show debug messages",
         default=False,
         action=argparse.BooleanOptionalAction,
+    )
+    parser.add_argument(
+        "-b",
+        "--buffer-size",
+        "--buffer",
+        help="buffer size for reading; supported units: k, m, g",
+        default="4k",
+        type=str_to_number,
     )
     parser.add_argument(
         "--fail-on-error",
@@ -749,6 +774,22 @@ def _parse_args(argv: Sequence[str] | None) -> NameSpace:
     return args
 
 
+def str_to_number(s: str) -> int:
+    # >>> str_to_number(' 128\n')
+    # 128
+    # >>> str_to_number('128 M')
+    # 134217728
+    # >>> str_to_number('128Megabytes')
+    # 134217728
+    # >>> str_to_number('4G')
+    # 4294967296
+    import re
+
+    units = ["k", "m", "g"]
+    rv, unit, *_ = re.findall(r"\d+|[a-z]", s, re.I) + [""]
+    return int(rv) * (1 << abs(~units.index(unit.lower())) * 10 if unit else 1)
+
+
 # def str2bool(v: str) -> bool:
 #     return v.lower() in ("yes", "true", "t", "1", "on")
 
@@ -757,9 +798,9 @@ def main(argv: Sequence[str] | None = None) -> None:
     args = _parse_args(argv)
     if args.debug:
         logger.setLevel(logging.DEBUG)
-    parser = DumpParser()
+    parser = DumpParser(ignore_errors=not args.fail_on_error)
     try:
-        for v in parser.parse(args.input, ignore_errors=not args.fail_on_error):
+        for v in parser.parse(source=args.input, buffer_size=args.buffer_size):
             # json.dump(
             #     v,
             #     fp=sys.stdout,
