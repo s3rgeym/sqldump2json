@@ -2,7 +2,7 @@
 
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/sqldump2json)]() [![PyPI - Version](https://img.shields.io/pypi/v/sqldump2json)]() [![Total Downloads](https://static.pepy.tech/badge/sqldump2json)]()
 
-Parsing SQL dumps into JSON objects.
+Parse SQL dumps into JSON objects.
 
 A tool for administrators, data scientists and hackers. With this tool you no longer need to import dumps into Databases. You can extract INSERT data as JSON and analyze them with [jq](https://github.com/jqlang/jq). The dump is not read entirely into RAM, so this utility can be used to process files of any size. And it can even parse corrupted dumps.
 
@@ -54,7 +54,7 @@ Hex strings are converted to base64:
 sqldump2json -i tests/dump.sql | tail -4 | head -1 | jq -r '.values[4]' | base64 -d > image.png
 ```
 
-Values converted to dict only if INSERT contains list of fields:
+Values are converted to dict only if the `INSERT` contains a list of fields or the fields are declared in `CREATE TABLE`:
 
 ```sql
 INSERT INTO users (id, name) VALUES (42, 'Vasyan');

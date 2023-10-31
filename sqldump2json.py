@@ -18,6 +18,7 @@ import string
 import sys
 import typing
 from base64 import b64encode
+from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum, auto
 from typing import Any, Iterable, Self, Sequence, Type, TypedDict
@@ -42,11 +43,11 @@ class Color(Enum):
 
 class ColorHandler(logging.StreamHandler):
     COLOR_LEVELS = {
-        logging.DEBUG: Color.GREEN,
-        logging.INFO: Color.MAGENTA,
+        logging.DEBUG: Color.CYAN,
+        logging.INFO: Color.GREEN,
         logging.WARNING: Color.YELLOW,
         logging.ERROR: Color.RED,
-        logging.CRITICAL: Color.RED,
+        logging.CRITICAL: Color.MAGENTA,
     }
 
     fmtr = logging.Formatter("[%(levelname).1s]: %(message)s")
@@ -61,6 +62,7 @@ class ColorHandler(logging.StreamHandler):
 
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.WARNING)
 logger.addHandler(ColorHandler())
 
 # При наследовании от просто type:
@@ -109,23 +111,17 @@ class TokenType(AutoName):
     T_BACKTICK_STRING = auto()
     T_BOOL = auto()
     T_COMMA = auto()
-    T_COMMENT = auto()
     T_CONCAT = auto()
-    T_CREATE = auto()
-    # T_DELETE = auto()
     T_DIV = auto()
     T_DOUBLE_QUOTED_STRING = auto()
-    T_EMPTY = auto()
     T_EOF = auto()
     T_EQ = auto()
-    T_EXISTS = auto()
     T_FLOAT = auto()
     T_FROM = auto()
     T_GT = auto()  # greater than
     T_GTE = auto()  # greater than or equal
     T_HEX_STRING = auto()
     T_IDENTIFIER = auto()
-    T_IF = auto()
     T_INSERT = auto()
     T_INT = auto()
     T_INTO = auto()
@@ -135,7 +131,6 @@ class TokenType(AutoName):
     T_MINUS = auto()
     T_MUL = auto()
     T_NE = auto()
-    T_NOT = auto()
     T_NULL = auto()
     T_OR = auto()
     T_PERIOD = auto()
@@ -146,12 +141,24 @@ class TokenType(AutoName):
     T_SEMICOLON = auto()
     T_SET = auto()
     T_STRING = auto()
-    T_TABLE = auto()
-    # T_UPDATE = auto()
-    # T_USE = auto()
     T_VALUES = auto()
-    T_WHERE = auto()
-    T_WHITE_SPACE = auto()
+
+    # https://www.postgresql.org/docs/current/ddl-constraints.html
+    T_CREATE = auto()
+    T_TABLE = auto()
+    T_IF = auto()
+    T_NOT = auto()
+    T_EXISTS = auto()
+    T_PRIMARY = auto()
+    T_FOREIGN = auto()
+    T_KEY = auto()
+    T_INDEX = auto()
+    T_CONSTRAINT = auto()
+    T_CHECK = auto()
+    T_UNIQUE = auto()
+    T_EXCLUDE = auto()
+    T_FULLTEXT = auto()
+    T_SPATIAL = auto()
 
     # Всякие операторы которым мне лень имена выдумывать
     T_DUMMY = auto()
@@ -161,51 +168,48 @@ class TokenType(AutoName):
     T_UNEXPECTED_CHAR = auto()
     T_INVALID_TOKEN = auto()
 
+    # Костыль
+    T_EMPTY = auto()
+
     def __str__(self) -> str:
         return self.value
 
 
 class Token(typing.NamedTuple):
     type: TokenType
-    value: Any
+    value: Any = ""
     lineno: int = -1
     colno: int = -1
 
     @property
     def repr_value(self) -> Any:
         return (
-            cut(self.value, 31) if isinstance(self.value, str) else self.value
+            cut_text(self.value, 31)
+            if isinstance(self.value, str)
+            else self.value
         )
 
     def __repr__(self) -> str:
         return f"token {self.repr_value!r} ({self.type}) at line {self.lineno} and column {self.colno}"
 
 
-def cut(s: str, n: int, dots: str = "...") -> str:
+def cut_text(s: str, n: int, dots: str = "…") -> str:
     """
-    >>> cut("Привет, мир!", 10)
-    'Привет,...'
+    >>> cut_text('Привет, мир!', 5)
+    'Прив…'
     """
     return s[: n - len(dots)] + ["", dots][len(s) > n]
 
 
 class Error(Exception):
-    pass
+    error_message: str = "An unexpected error has ocurred"
+
+    def __init__(self, error_message: str | None = None):
+        self.error_message = error_message or self.error_message
+        super().__init__(self.error_message)
 
 
-@dataclass
-class UnexpectedChar(Error):
-    char: str
-    lineno: int
-    colno: int
-
-    def __str__(self) -> str:
-        return f"unexcpected char {self.char!r} at line {self.lineno} and column {self.colno}"
-
-
-class UnexpectedEnd(Error):
-    pass
-
+# Ошибки токенайзера удалены
 
 # def sort_keys_length(d: dict) -> dict:
 #     return dict(sorted(d.items(), key=lambda kv: len(kv[0]), reverse=True))
@@ -226,7 +230,6 @@ class SQLTokenizer:
     PERIOD_CHAR = "."
     QUOTE_CHAR = "'"
     SLASH_CHAR = "/"
-    TOKEN_EMPTY = Token(TokenType.T_EMPTY, "")
     SYMBOL_OPERATORS: dict[str, TokenType] = {
         "-": TokenType.T_MINUS,  # substraction
         "-=": TokenType.T_DUMMY,
@@ -296,7 +299,7 @@ class SQLTokenizer:
         # >>> '' in 'abc'
         # True
         if self.ch == "":
-            return self.token(TokenType.T_EOF, "")
+            return self.token(TokenType.T_EOF)
         # пропускаем пробельные символы
         if self.ch.isspace():
             while self.peek_ch.isspace():
@@ -333,7 +336,28 @@ class SQLTokenizer:
                     return self.token(TokenType.T_NULL, None)
                 case "TRUE" | "FALSE":
                     return self.token(TokenType.T_BOOL, val == "TRUE")
-                case "AND" | "INSERT" | "INTO" | "NOT" | "OR" | "VALUES":
+                case (
+                    "AND"
+                    | "CHECK"
+                    | "CONSTRAINT"
+                    | "CREATE"
+                    | "EXCLUDE"
+                    | "EXISTS"
+                    | "FOREIGN"
+                    | "FULLTEXT"
+                    | "IF"
+                    | "INDEX"
+                    | "INSERT"
+                    | "INTO"
+                    | "KEY"
+                    | "NOT"
+                    | "OR"
+                    | "PRIMARY"
+                    | "SPATIAL"
+                    | "TABLE"
+                    | "UNIQUE"
+                    | "VALUES"
+                ):
                     return self.token(TokenType[f"T_{upper}"], val)
             return self.token(TokenType.T_IDENTIFIER, val)
         # бинарные данные хранятся в Неведомой Ебанной Хуйне
@@ -355,14 +379,16 @@ class SQLTokenizer:
             # hex string => bytes
             return self.token(TokenType.T_HEX_STRING, binascii.unhexlify(val))
         # числа
+        # self.ch.isnumeric() использовать нельзя:
+        # ValueError: invalid literal for int() with base 10: '³'
         if (
-            self.ch == self.MINUS_CHAR and self.peek_ch.isnumeric()
-        ) or self.ch.isnumeric():
+            self.ch == self.MINUS_CHAR and self.peek_ch in string.digits
+        ) or self.ch in string.digits:
             val = self.ch
             if self.ch == self.MINUS_CHAR:
                 self.advance()
                 val += self.ch
-            while self.peek_ch.isnumeric() or (
+            while self.peek_ch in string.digits or (
                 self.peek_ch == self.PERIOD_CHAR and not self.PERIOD_CHAR in val
             ):
                 self.advance()
@@ -399,6 +425,8 @@ class SQLTokenizer:
                                 val += "\r"
                             case "t":
                                 val += "\t"
+                            case "v":
+                                val += "\v"
                             case _:
                                 val += self.ch
                     else:
@@ -429,12 +457,9 @@ class SQLTokenizer:
         self.colno = 0
         self.lineno = 1
         self.peek_ch = self.readch()
-        while t := self.next_token():
-            # if t.type in (TokenType.T_WHITE_SPACE, TokenType.T_COMMENT):
-            #     continue
-            logger.debug(t)
-            yield t
-            if t.type == TokenType.T_EOF:
+        while tok := self.next_token():
+            yield tok
+            if tok.type == TokenType.T_EOF:
                 break
 
     __iter__ = tokenize
@@ -442,6 +467,10 @@ class SQLTokenizer:
 
 class ParseError(Error):
     pass
+
+
+class UnexpectedEnd(ParseError):
+    error_message: str = "Unexpected End"
 
 
 class InsertValues(TypedDict):
@@ -456,10 +485,8 @@ class DumpParser:
     def advance_token(self) -> None:
         self.cur_token, self.next_token = (
             self.next_token,
-            next(self.tokenizer_it, None),
+            next(self.tokenizer_it, Token(TokenType.T_EMPTY)),
         )
-        if self.cur_token is None and self.next_token is None:
-            raise ParseError("unexpected end")
 
     def peek_token(self, *expected: TokenType) -> bool:
         """Проверить тип следующего токена и сделать его текущим"""
@@ -473,54 +500,6 @@ class DumpParser:
             raise ParseError(f"unexpected: {self.next_token}")
         # Когда нечего вернуть, то лучше всего возвращать self
         return self
-
-    def quoted_identifier(self) -> str:
-        return self.expect_token(
-            TokenType.T_IDENTIFIER,
-            TokenType.T_DOUBLE_QUOTED_STRING,
-            TokenType.T_BACKTICK_STRING,
-            TokenType.T_HEX_STRING,
-        ).cur_token.value
-
-    def table_identifier(self) -> str:
-        rv = self.quoted_identifier()
-        # table_space.table_name
-        if self.peek_token(TokenType.T_PERIOD):
-            rv += self.cur_token.value + self.quoted_identifier()
-        return rv
-
-    def parse_insert(self) -> Iterable[InsertValues]:
-        # INSERT INTO tbl (col1, col2) VALUES ('a', 1);
-        logger.debug("parse insert statement")
-        self.expect_token(TokenType.T_INTO)
-        table_name = self.table_identifier()
-        # имена колонок опциональны
-        column_names = []
-        if self.peek_token(TokenType.T_LPAREN):
-            while True:
-                column_names.append(self.quoted_identifier())
-                if self.peek_token(TokenType.T_RPAREN):
-                    break
-                # rparen просто для красоты
-                self.expect_token(TokenType.T_COMMA, TokenType.T_RPAREN)
-        self.expect_token(TokenType.T_VALUES)
-        while self.expect_token(TokenType.T_LPAREN):
-            values = []
-            while True:
-                values.append(self.expr())
-                if self.peek_token(TokenType.T_RPAREN):
-                    break
-                self.expect_token(TokenType.T_COMMA, TokenType.T_RPAREN)
-            yield {
-                "table_name": table_name,
-                "values": dict(zip(column_names, values))
-                if column_names
-                else values.copy(),
-            }
-            if self.peek_token(TokenType.T_COMMA):
-                continue
-            self.expect_token(TokenType.T_SEMICOLON)
-            return
 
     # Проритет операторов описан здесь:
     # https://learn.microsoft.com/ru-ru/sql/t-sql/language-elements/operator-precedence-transact-sql?view=sql-server-ver16
@@ -582,7 +561,8 @@ class DumpParser:
             rv = self.expr()
             self.expect_token(TokenType.T_RPAREN)
             return rv
-        # values (default, ...)
+        # TODO: _binary '<escaped characters>'
+        # https://dev.mysql.com/doc/refman/8.0/en/charset-introducer.html
         if self.peek_token(TokenType.T_IDENTIFIER):
             return None
         return self.expect_token(
@@ -596,6 +576,108 @@ class DumpParser:
             TokenType.T_IDENTIFIER,
         ).cur_token.value
 
+    def quoted_identifier(self) -> str:
+        return self.expect_token(
+            TokenType.T_IDENTIFIER,
+            TokenType.T_DOUBLE_QUOTED_STRING,
+            TokenType.T_BACKTICK_STRING,
+            TokenType.T_HEX_STRING,
+        ).cur_token.value
+
+    def table_identifier(self) -> str:
+        rv = self.quoted_identifier()
+        # table_space.table_name
+        if self.peek_token(TokenType.T_PERIOD):
+            rv += self.cur_token.value + self.quoted_identifier()
+        return rv
+
+    def parse_insert(self) -> Iterable[InsertValues]:
+        # INSERT INTO tbl (col1, col2) VALUES ('a', 1);
+        logger.info("parse insert")
+        self.expect_token(TokenType.T_INTO)
+        table_name = self.table_identifier()
+        logger.debug(f"{table_name=}")
+        # имена колонок опциональны
+        column_names = []
+        if self.peek_token(TokenType.T_LPAREN):
+            while True:
+                column_names.append(self.quoted_identifier())
+                if self.peek_token(TokenType.T_RPAREN):
+                    break
+                self.expect_token(TokenType.T_COMMA)
+        self.expect_token(TokenType.T_VALUES)
+        while self.expect_token(TokenType.T_LPAREN):
+            values = []
+            while True:
+                values.append(self.expr())
+                if self.peek_token(TokenType.T_RPAREN):
+                    break
+                self.expect_token(TokenType.T_COMMA)
+            column_names = column_names or self.table_fields[table_name]
+            # logger.debug(f"{column_names=}")
+            if len(column_names) != len(values):
+                raise ParseError(
+                    "missmatch number of column names and number of values"
+                )
+            yield {
+                "table_name": table_name,
+                "values": dict(zip(column_names, values))
+                if column_names
+                else values.copy(),
+            }
+            if self.peek_token(TokenType.T_COMMA):
+                continue
+            self.expect_token(TokenType.T_SEMICOLON)
+            return
+
+    def raise_eof(self) -> None:
+        if self.peek_token(TokenType.T_EOF):
+            raise UnexpectedEnd()
+
+    def parse_create_table(self) -> None:
+        # https://www.postgresql.org/docs/current/sql-createtable.html
+        # https://dev.mysql.com/doc/refman/8.0/en/create-table.html
+        logger.info("parse create table")
+        if self.peek_token(TokenType.T_IF):
+            self.expect_token(TokenType.T_NOT)
+            self.expect_token(TokenType.T_EXISTS)
+        table_name = self.table_identifier()
+        logger.debug(f"{table_name=}")
+        self.expect_token(TokenType.T_LPAREN)
+        while True:
+            # Я не все скорее всего перечислил ключевые слова для объявления индексов отдельно
+            if not self.peek_token(
+                TokenType.T_CHECK,
+                TokenType.T_CONSTRAINT,
+                TokenType.T_FOREIGN,
+                TokenType.T_FULLTEXT,
+                TokenType.T_INDEX,
+                TokenType.T_KEY,
+                TokenType.T_PRIMARY,
+                TokenType.T_SPATIAL,
+                TokenType.T_UNIQUE,
+            ):
+                column_name = self.quoted_identifier()
+                logger.debug(f"{column_name=}")
+                self.table_fields[table_name].append(column_name)
+            # Формально синтаксис проверяем
+            while not self.peek_token(TokenType.T_COMMA):
+                if self.peek_token(TokenType.T_RPAREN):
+                    logger.info(
+                        "%r: %r",
+                        table_name,
+                        self.table_fields[table_name],
+                    )
+                    return
+                # varchar(255) and etc
+                if self.peek_token(TokenType.T_LPAREN):
+                    while not self.peek_token(TokenType.T_RPAREN):
+                        self.raise_eof()
+                        self.advance_token()
+                else:
+                    self.raise_eof()
+                    self.advance_token()
+
     def parse(
         self,
         source: typing.TextIO | str,
@@ -603,20 +685,27 @@ class DumpParser:
     ) -> Iterable[InsertValues]:
         self.tokenizer = self.tokenizer_class(input=source)
         self.tokenizer_it = iter(self.tokenizer)
-        self.cur_token = self.next_token = None
+        self.next_token = Token(TokenType.T_EMPTY)
+        # Сделает текущий пустым
         self.advance_token()
-        while not self.peek_token(TokenType.T_EOF):
-            if self.peek_token(TokenType.T_INSERT):
-                try:
+        # Используем list так как важен порядок объявления колонок
+        self.table_fields = defaultdict(list)
+        while not self.peek_token(TokenType.T_EOF, TokenType.T_EMPTY):
+            try:
+                if self.peek_token(TokenType.T_CREATE) and self.peek_token(
+                    TokenType.T_TABLE
+                ):
+                    self.parse_create_table()
+                elif self.peek_token(TokenType.T_INSERT):
                     yield from self.parse_insert()
-                # CREATE TRIGGER customer_create_date BEFORE INSERT ON customer
-                # 	FOR EACH ROW SET NEW.create_date = NOW();
-                except ParseError as ex:
-                    if not ignore_errors:
-                        raise ex
-                    logger.warning(ex)
-                continue
-            self.advance_token()
+                else:
+                    logger.debug("skip: %s", self.cur_token)
+                    self.advance_token()
+            except ParseError as ex:
+                if not ignore_errors:
+                    raise ex
+                logger.warning(ex)
+
         logger.info("finished")
 
 
@@ -632,7 +721,7 @@ def _parse_args(argv: Sequence[str] | None) -> NameSpace:
         "-i",
         "--input",
         default="-",
-        type=argparse.FileType(errors="ignore"),
+        type=argparse.FileType(errors="replace"),
     )
     parser.add_argument(
         "-o",
@@ -653,10 +742,20 @@ def _parse_args(argv: Sequence[str] | None) -> NameSpace:
 
 def main(argv: Sequence[str] | None = None) -> None:
     args = _parse_args(argv)
-    logger.setLevel(level=(logging.WARNING, logging.DEBUG)[args.debug])
+    if args.debug:
+        logger.setLevel(logging.DEBUG)
     parser = DumpParser()
     try:
         for v in parser.parse(args.input):
+            # json.dump(
+            #     v,
+            #     fp=sys.stdout,
+            #     ensure_ascii=False,
+            #     cls=Base64Encoder,
+            # )
+            # sys.stdout.write(os.linesep)
+            # sys.stdout.flush()
+
             json.dump(
                 v,
                 fp=args.output,

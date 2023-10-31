@@ -12,20 +12,31 @@ class Test(unittest.TestCase):
     def setUp(self) -> None:
         self.parser = DumpParser()
 
-    def test_corrupted_data(self) -> None:
-        # Тут две запятые, после того как встречен какой-то неожиданный токен,
-        # мы игнорируем все токены до следующего INSERT
+    def test_create_table(self) -> None:
         sql = """
-INSERT/*lalalala*/INTO users(name,age)VALUES ('Petya', 31), ('Katya', 29),,
-('Vasya', 42),
-INSERT INTO users VALUES(DEFAULT, "Semyon", 52 / (4 - 2))
+CrEAte/**/TABLE
+users(
+    user_id int NOT NULL,
+    username varchar(31) NOT NULL,
+    password varchar(31) NOT NULL,
+    PRIMARY KEY(user_id))
+;
+
+
+insert into users values (1, 'tester', 'test123'),
+    (2, 'dummyuser', '123456');
         """
         self.assertEqual(
             [*self.parser.parse(sql)],
             [
-                {"table_name": "users", "values": {"age": 31, "name": "Petya"}},
-                {"table_name": "users", "values": {"age": 29, "name": "Katya"}},
-                {"table_name": "users", "values": [None, "Semyon", 26]},
+                {
+                    "table_name": "users",
+                    "values": {"user_id": 1, "username": "tester"},
+                },
+                {
+                    "table_name": "users",
+                    "values": {"user_id": 2, "username": "dummyuser"},
+                },
             ],
         )
 
@@ -38,7 +49,7 @@ INSERT INTO users VALUES(DEFAULT, "Semyon", 52 / (4 - 2))
                 # Там фотка этого васяна
                 if first_name == "Mike" and last_name == "Hillyer":
                     self.assertEqual(b"\x89PNG", img_data[:4])
-                    # Убедимся что на фото грязный американский, заплывший жиром, куколд бургер-Джо с дилдо в его радужной жопе
+                    # Убедимся что на фото грязный американский, заплывший жиром, куколд Бургер Джо с дилдо в его радужной жопе
                     self.assertEqual(
                         img_data,
                         CUCKOLD_PHOTO.read_bytes(),

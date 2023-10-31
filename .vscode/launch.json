@@ -12,7 +12,8 @@
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "justMyCode": true,
-      "args": ["-i", "tests/dump.sql", "-d"]
+      //"args": ["-i", "tests/dump.sql", "-d"]
+      "args": ["-i", "~/workspace/pwned/***REMOVED***", "-d"]
     }
   ]
 }
