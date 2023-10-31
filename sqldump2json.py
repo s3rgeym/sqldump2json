@@ -10,7 +10,6 @@
 """Parse SQL Dumps to JSON Objects"""
 import argparse
 import binascii
-
 # from collections import defaultdict
 import dataclasses
 import functools
@@ -19,6 +18,7 @@ import itertools
 import json
 import logging
 import os
+import re
 import string
 import sys
 import typing
@@ -777,40 +777,29 @@ def _parse_args(argv: Sequence[str] | None) -> NameSpace:
 
 
 def str_to_number(s: str) -> int:
-    # >>> str_to_number(' 128\n')
+    # >>> str_to_number('\t128\n')
     # 128
-    # >>> str_to_number('128 M')
+    # >>> str_to_number('128M')
     # 134217728
-    # >>> str_to_number('128Megabytes')
+    # >>> str_to_number('131,072 Kbytes')
     # 134217728
-    # >>> str_to_number('4G')
-    # 4294967296
-    import re
-
     units = ["k", "m", "g"]
-    rv, unit, *_ = re.findall(r"\d+|[a-z]", s, re.I) + [""]
-    return int(rv) * (1 << abs(~units.index(unit.lower())) * 10 if unit else 1)
+    rv, unit, *_ = re.findall(r"\d[\d,]*|[a-z]", s, re.I) + [""]
+    return int(rv.replace(",", "")) * (
+        1 << abs(~units.index(unit.lower())) * 10 if unit else 1
+    )
 
 
 # def str2bool(v: str) -> bool:
 #     return v.lower() in ("yes", "true", "t", "1", "on")
 
 
-def main(argv: Sequence[str] | None = None) -> None:
+def main(argv: Sequence[str] | None = None) -> int | None:
     args = _parse_args(argv)
     args.debug and logger.setLevel(logging.DEBUG)
     parser = DumpParser(ignore_errors=not args.fail_on_error)
     try:
         for v in parser.parse(source=args.input, buffer_size=args.buffer_size):
-            # json.dump(
-            #     v,
-            #     fp=sys.stdout,
-            #     ensure_ascii=False,
-            #     cls=Base64Encoder,
-            # )
-            # sys.stdout.write(os.linesep)
-            # sys.stdout.flush()
-
             json.dump(
                 v,
                 fp=args.output,
@@ -821,6 +810,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             args.output.flush()
     except ParseError as ex:
         logger.fatal(ex)
+        return 1
     except KeyboardInterrupt:
         print("\nbye!", file=sys.stderr)
 
