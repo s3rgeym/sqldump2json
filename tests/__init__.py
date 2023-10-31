@@ -25,7 +25,7 @@ cReAte/**/taBLe users(
 insert into users values (1, 'tester', 'test123'),
     (2, 'dummyuser', '123456')
 
-INSERT INTO your_mouse VALUES("my_penis");
+INSERT INTO posts VALUES(1, "Hello World!", "Text Goes Here");
         """
         self.assertEqual(
             [*self.parser.parse(sql)],
@@ -46,7 +46,10 @@ INSERT INTO your_mouse VALUES("my_penis");
                         "password": "123456",
                     },
                 },
-                {"table_name": "your_mouse", "values": ["my_penis"]},
+                {
+                    "table_name": "posts",
+                    "values": [1, "Hello World!", "Text goes here"],
+                },
             ],
         )
 
