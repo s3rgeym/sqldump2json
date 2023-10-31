@@ -33,6 +33,7 @@ For other shit like Ubuntu you need to do more steps:
 Usage:
 
 ```bash
+sqldump2json -h
 sqldump2json -i /path/to/dump.sql
 ```
 
