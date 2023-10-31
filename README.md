@@ -48,7 +48,7 @@ Output:
 {"table_name": "users", "values": {"id": 42, "name": "Vasyan"}}
 ```
 
-Convert tble to TSV:
+Convert to tsv:
 
 ```bash
 $ sqldump2json -i tests/dump.sql | jq -r 'select(.table_name == "actor").values | @tsv'
