@@ -12,31 +12,41 @@ class Test(unittest.TestCase):
     def setUp(self) -> None:
         self.parser = DumpParser()
 
-    def test_create_table(self) -> None:
+    def test_insert_values(self) -> None:
         sql = """
-CrEAte/**/TABLE
-users(
+cReAte/**/taBLe users(
     user_id int NOT NULL,
     username varchar(31) NOT NULL,
     password varchar(31) NOT NULL,
-    PRIMARY KEY(user_id))
-;
+    PRIMARY KEY(user_id));
 
+ошибки парсинга должны игнорироваться
 
 insert into users values (1, 'tester', 'test123'),
-    (2, 'dummyuser', '123456');
+    (2, 'dummyuser', '123456')
+
+INSERT INTO your_mouse VALUES("my_penis");
         """
         self.assertEqual(
             [*self.parser.parse(sql)],
             [
                 {
                     "table_name": "users",
-                    "values": {"user_id": 1, "username": "tester"},
+                    "values": {
+                        "user_id": 1,
+                        "username": "tester",
+                        "password": "test123",
+                    },
                 },
                 {
                     "table_name": "users",
-                    "values": {"user_id": 2, "username": "dummyuser"},
+                    "values": {
+                        "user_id": 2,
+                        "username": "dummyuser",
+                        "password": "123456",
+                    },
                 },
+                {"table_name": "your_mouse", "values": ["my_penis"]},
             ],
         )
 
