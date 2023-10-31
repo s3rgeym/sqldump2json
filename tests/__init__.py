@@ -25,7 +25,7 @@ cReAte/**/taBLe users(
 insert into users values (1, 'tester', 'test123'),
     (2, 'dummyuser', '123456')
 
-INSERT INTO posts VALUES(1, "Hello World!", "Text Goes Here");
+INSERT INTO posts VALUES(123, "Hello World!", "Hello, world!");
         """
         self.assertEqual(
             [*self.parser.parse(sql)],
@@ -48,7 +48,7 @@ INSERT INTO posts VALUES(1, "Hello World!", "Text Goes Here");
                 },
                 {
                     "table_name": "posts",
-                    "values": [1, "Hello World!", "Text goes here"],
+                    "values": [123, "Hello World!", "Hello, world!"],
                 },
             ],
         )
