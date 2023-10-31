@@ -10,6 +10,7 @@
 """Parse SQL Dumps to JSON Objects"""
 import argparse
 import binascii
+
 # from collections import defaultdict
 import dataclasses
 import functools
@@ -691,7 +692,7 @@ class DumpParser:
     def parse(
         self,
         source: typing.TextIO | str,
-        buffer_size: int = 4096,
+        buffer_size: int = 8192,
     ) -> Iterable[InsertData]:
         logger.debug("reading buffer size: %d bytes", buffer_size)
         logger.debug(
@@ -812,7 +813,7 @@ def main(argv: Sequence[str] | None = None) -> int | None:
         logger.fatal(ex)
         return 1
     except KeyboardInterrupt:
-        print("\nbye!", file=sys.stderr)
+        logger.warning("Aborted")
 
 
 class Base64Encoder(json.JSONEncoder):
