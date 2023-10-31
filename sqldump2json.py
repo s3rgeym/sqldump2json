@@ -66,7 +66,6 @@ class ColorHandler(logging.StreamHandler):
 
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.WARNING)
 logger.addHandler(ColorHandler())
 
 # При наследовании от просто type:
@@ -481,7 +480,7 @@ class UnexpectedEnd(ParseError):
     error_message: str = "Unexpected End"
 
 
-class InsertValues(TypedDict):
+class InsertData(TypedDict):
     table_name: str
     values: dict[str, Any] | list[Any]
 
@@ -600,7 +599,7 @@ class DumpParser:
             rv += self.cur_token.value + self.quoted_identifier()
         return rv
 
-    def parse_insert(self) -> Iterable[InsertValues]:
+    def parse_insert(self) -> Iterable[InsertData]:
         # INSERT INTO tbl (col1, col2) VALUES ('a', 1);
         logger.debug("parse insert values")
         self.expect_token(TokenType.T_INTO)
@@ -690,8 +689,11 @@ class DumpParser:
                     self.advance_token()
 
     def parse(
-        self, source: typing.TextIO | str, buffer_size: int = 4096
-    ) -> Iterable[InsertValues]:
+        self,
+        source: typing.TextIO | str,
+        buffer_size: int = 4096,
+    ) -> Iterable[InsertData]:
+        logger.debug("reading buffer size: %d bytes", buffer_size)
         logger.debug(
             "ignore parse errors: %s", ["off", "on"][self.ignore_errors]
         )
@@ -796,8 +798,7 @@ def str_to_number(s: str) -> int:
 
 def main(argv: Sequence[str] | None = None) -> None:
     args = _parse_args(argv)
-    if args.debug:
-        logger.setLevel(logging.DEBUG)
+    args.debug and logger.setLevel(logging.DEBUG)
     parser = DumpParser(ignore_errors=not args.fail_on_error)
     try:
         for v in parser.parse(source=args.input, buffer_size=args.buffer_size):

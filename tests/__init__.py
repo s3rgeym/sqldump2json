@@ -1,7 +1,9 @@
 import unittest
 from pathlib import Path
 
-from sqldump2json import DumpParser
+from sqldump2json import DumpParser, logger
+
+logger.handlers.clear()
 
 CUR_DIR = Path(__file__).parent
 DUMP_FILE = CUR_DIR / "dump.sql"
