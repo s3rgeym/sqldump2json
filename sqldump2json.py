@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Тут реализована ЛИШЬ ЧАСТИЧНАЯ поддержка SQL — ТОЛЬКО INSERT выражений
+# Тут реализована ЛИШЬ ЧАСТИЧНАЯ поддержка SQL — для CREATE TABLE и INSERT выражений
 # https://teiid.github.io/teiid-documents/10.2.x/content/reference/BNF_for_SQL_Grammar.html
 # https://github.com/orion-orion/TinyPy/blob/main/pytokenizer.py
 # https://mathspp.com/blog/lsbasi-apl-part3
@@ -274,7 +274,7 @@ class SQLTokenizer:
         source: io.TextIOBase | str,
         buffer_size: int = -1,  # Учтите, что по дефолту весь файл читается в память
     ) -> None:
-        self.chars_iter = self.read_chars(
+        self.char_it = self.read_chars(
             io.StringIO(source) if isinstance(source, str) else source,
             buffer_size,
         )
@@ -296,7 +296,7 @@ class SQLTokenizer:
     def advance(self) -> None:
         self.ch, self.peek_ch = (
             self.peek_ch,
-            next(self.chars_iter, ""),
+            next(self.char_it, ""),
         )
 
     def next_token(self) -> Token:
@@ -464,7 +464,7 @@ class SQLTokenizer:
         self.ch = None
         self.colno = 0
         self.lineno = 1
-        self.peek_ch = next(self.chars_iter)
+        self.peek_ch = next(self.char_it)
         while tok := self.next_token():
             yield tok
             if tok.type == TokenType.T_EOF:
@@ -763,8 +763,8 @@ def _parse_args(argv: Sequence[str] | None) -> NameSpace:
         "-b",
         "--buffer-size",
         "--buffer",
-        help="buffer size for reading; supported units: k, m, g",
-        default="4k",
+        help="buffer size for reading; supported units: k, m, g (case insensitive)",
+        default="8K",
         type=str_to_number,
     )
     parser.add_argument(
@@ -777,17 +777,18 @@ def _parse_args(argv: Sequence[str] | None) -> NameSpace:
     return args
 
 
-def str_to_number(s: str) -> int:
+def str_to_number(
+    s: str, *, units: typing.Sequence[str] = ["k", "m", "g"], base: int = 1024
+) -> int:
     # >>> str_to_number('\t128\n')
     # 128
     # >>> str_to_number('128M')
     # 134217728
-    # >>> str_to_number('131,072 Kbytes')
+    # >>> str_to_number('131,072 Kebabytes')
     # 134217728
-    units = ["k", "m", "g"]
-    rv, unit, *_ = re.findall(r"\d(?:,?\d+)*|[a-z]", s, re.I) + [""]
+    rv, unit, *_ = re.findall(r"\d[\d,]*|[A-Za-z]", s) + [""]
     return int(rv.replace(",", "")) * (
-        1 << abs(~units.index(unit.lower())) * 10 if unit else 1
+        base ** -~units.index(unit.lower()) if unit else 1
     )
 
 
