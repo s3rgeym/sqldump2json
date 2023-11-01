@@ -187,7 +187,7 @@ class Token(typing.NamedTuple):
     @property
     def repr_value(self) -> Any:
         return (
-            cut_text(self.value, 31)
+            cut_text(self.value, 20)
             if isinstance(self.value, str)
             else self.value
         )
