@@ -515,6 +515,7 @@ class DumpParser:
     # Проритет операторов описан здесь:
     # https://learn.microsoft.com/ru-ru/sql/t-sql/language-elements/operator-precedence-transact-sql?view=sql-server-ver16
     # Чем ниже приоритет тем первее вызывается
+    # Этот функционал избыточен, но мне жалко удалять код ниже
     def expr(self) -> Any:
         rv = self.AND()
         while self.peek_token(TokenType.T_OR):
@@ -763,7 +764,7 @@ def _parse_args(argv: Sequence[str] | None) -> NameSpace:
         "-b",
         "--buffer-size",
         "--buffer",
-        help="buffer size for reading; supported units: k, m, g (case insensitive)",
+        help="buffer size for reading: <SIZE> [ <UNIT> ]; supported units: k, m, g (case insensitive)",
         default="8K",
         type=str_to_number,
     )
