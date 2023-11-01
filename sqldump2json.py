@@ -803,15 +803,18 @@ def main(argv: Sequence[str] | None = None) -> int | None:
         logger.setLevel(logging.DEBUG)
     parser = DumpParser(ignore_errors=not args.fail_on_error)
     try:
-        for v in parser.parse(source=args.input, buffer_size=args.buffer_size):
+        for count, value in enumerate(
+            parser.parse(source=args.input, buffer_size=args.buffer_size), 1
+        ):
             json.dump(
-                v,
+                value,
                 fp=args.output,
                 ensure_ascii=False,
                 cls=Base64Encoder,
             )
             args.output.write(os.linesep)
             args.output.flush()
+        logger.info("Total values in %r: %d", args.input.name, count)
     except ParseError as ex:
         logger.fatal(ex)
         return 1
