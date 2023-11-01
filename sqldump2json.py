@@ -19,6 +19,7 @@ import itertools
 import json
 import logging
 import os
+import re
 import string
 import sys
 import typing
@@ -777,7 +778,7 @@ def _parse_args(argv: Sequence[str] | None) -> NameSpace:
 
 
 def str_to_number(
-    s: str, *, units: typing.Sequence[str] = "kmg", base: int = 1024
+    s: str, *, units: typing.Sequence[str] = "KMG", base: int = 1024
 ) -> int:
     # >>> str_to_number('\t128\n')
     # 128
@@ -785,9 +786,11 @@ def str_to_number(
     # 134217728
     # >>> str_to_number('131,072 Kebabytes')
     # 134217728
-    size, unit, *_ = s.split() + [None]
+    if not (match := re.match(r"\s*(\d[,\d]*)\s*([a-zA-Z]?)", s)):
+        raise ValueError(s)
+    size, unit = match.groups()
     return int(size.replace(",", "")) * (
-        base ** -~units.upper().index(unit.title()[0]) if unit else 1
+        base ** -~units.lower().index(unit[0].lower()) if unit else 1
     )
 
 
