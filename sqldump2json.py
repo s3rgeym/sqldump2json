@@ -626,7 +626,7 @@ class DumpParser:
             column_names = self.table_fields.get(table_name, column_names)
             if column_names and len(column_names) != len(values):
                 raise ParseError(
-                    "missmatch number of column names and number of values"
+                    f"missmatch number of column names and number of values for table {table_name!r}"
                 )
             yield {
                 "table_name": table_name,
