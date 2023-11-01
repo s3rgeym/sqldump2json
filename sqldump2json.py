@@ -67,7 +67,6 @@ class ColorHandler(logging.StreamHandler):
 
 
 logger = logging.getLogger(__name__)
-logger.addHandler(ColorHandler())
 
 # При наследовании от просто type:
 # TypeError: metaclass conflict: the metaclass of a derived class must be a (non-strict) subclass of the metaclasses of all its bases
@@ -799,7 +798,9 @@ def str_to_number(
 
 def main(argv: Sequence[str] | None = None) -> int | None:
     args = _parse_args(argv)
-    args.debug and logger.setLevel(logging.DEBUG)
+    logger.addHandler(ColorHandler())
+    if args.debug:
+        logger.setLevel(logging.DEBUG)
     parser = DumpParser(ignore_errors=not args.fail_on_error)
     try:
         for v in parser.parse(source=args.input, buffer_size=args.buffer_size):
