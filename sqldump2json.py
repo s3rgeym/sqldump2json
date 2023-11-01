@@ -800,6 +800,7 @@ def str_to_number(
 
 def main(argv: Sequence[str] | None = None) -> int | None:
     args = _parse_args(argv)
+    # logger тормозная вещь так как блокирует основной поток
     logger.addHandler(ColorHandler())
     if args.debug:
         logger.setLevel(logging.DEBUG)
