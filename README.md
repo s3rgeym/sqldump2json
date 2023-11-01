@@ -96,3 +96,4 @@ poetry run python -m unittest
 ## TODO LIST
 
 * Add support [mysql strings with charset](https://dev.mysql.com/doc/refman/8.0/en/charset-introducer.html) (eg, `_binary '\x00...'`).
+* Improve I/O performance.
