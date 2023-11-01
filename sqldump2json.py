@@ -787,7 +787,7 @@ def str_to_number(
     # >>> str_to_number('131,072 Kebabytes')
     # 134217728
     if not (match := re.match(r"\s*(\d[,\d]*)\s*([a-zA-Z]?)", s)):
-        raise ValueError(s)
+        raise ValueError(f"invalid size: {s!r}")
     size, unit = match.groups()
     return int(size.replace(",", "")) * (
         base ** -~units.lower().index(unit[0].lower()) if unit else 1
