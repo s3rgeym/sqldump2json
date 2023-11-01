@@ -55,6 +55,52 @@ INSERT INTO posts VALUES(123, "Hello World!", "Hello, world!");
             ],
         )
 
+    def test_insert_values_so39216133(self) -> None:
+        sql = """
+        DROP TABLE IF EXISTS `geo_tags`;
+        /*!40101 SET @saved_cs_client     = @@character_set_client */;
+        /*!40101 SET character_set_client = utf8 */;
+        CREATE TABLE `geo_tags` (
+          `gt_id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+          `gt_page_id` int(10) unsigned NOT NULL,
+          `gt_globe` varbinary(32) NOT NULL,
+          `gt_primary` tinyint(1) NOT NULL,
+          `gt_lat` decimal(11,8) DEFAULT NULL,
+          `gt_lon` decimal(11,8) DEFAULT NULL,
+          `gt_dim` int(11) DEFAULT NULL,
+          `gt_type` varbinary(32) DEFAULT NULL,
+          `gt_name` varbinary(255) DEFAULT NULL,
+          `gt_country` binary(2) DEFAULT NULL,
+          `gt_region` varbinary(3) DEFAULT NULL,
+        PRIMARY KEY (`gt_id`),
+        KEY `gt_page_primary` (`gt_page_id`,`gt_primary`),
+        KEY `gt_page_id_id` (`gt_page_id`,`gt_id`)
+        ) ENGINE=InnoDB AUTO_INCREMENT=4507036 DEFAULT CHARSET=binary ROW_FORMAT=DYNAMIC;
+
+        INSERT INTO `geo_tags` VALUES (3,487781,'earth',1,59.00000000,10.00000000,1000,NULL,NULL,NULL,NULL);
+        """
+        self.assertEqual(
+            list(self.parser.parse(sql)),
+            [
+                {
+                    "table_name": "geo_tags",
+                    "values": {
+                        "gt_country": None,
+                        "gt_dim": 1000,
+                        "gt_globe": "earth",
+                        "gt_id": 3,
+                        "gt_lat": 59.0,
+                        "gt_lon": 10.0,
+                        "gt_name": None,
+                        "gt_page_id": 487781,
+                        "gt_primary": 1,
+                        "gt_region": None,
+                        "gt_type": None,
+                    },
+                }
+            ],
+        )
+
     def test_hex_string2bytes(self) -> None:
         with DUMP_FILE.open() as fp:
             for res in self.parser.parse(fp):
