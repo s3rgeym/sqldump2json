@@ -71,7 +71,7 @@ $ echo 'insert into test (result) values (-2 + 2 * 2);' | sqldump2json
 {"table_name": "test", "values": {"result": 2}}
 ```
 
-## Sripting
+## Scripting
 
 If you were looking for a way how to import data from SQL to NoSQL databases and etc:
 
