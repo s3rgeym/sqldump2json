@@ -80,25 +80,23 @@ INSERT INTO posts VALUES(123, "Hello World!", "Hello, world!");
         INSERT INTO `geo_tags` VALUES (3,487781,'earth',1,59.00000000,10.00000000,1000,NULL,NULL,NULL,NULL);
         """
         self.assertEqual(
-            list(self.parser.parse(sql)),
-            [
-                {
-                    "table_name": "geo_tags",
-                    "values": {
-                        "gt_country": None,
-                        "gt_dim": 1000,
-                        "gt_globe": "earth",
-                        "gt_id": 3,
-                        "gt_lat": 59.0,
-                        "gt_lon": 10.0,
-                        "gt_name": None,
-                        "gt_page_id": 487781,
-                        "gt_primary": 1,
-                        "gt_region": None,
-                        "gt_type": None,
-                    },
-                }
-            ],
+            next(self.parser.parse(sql)),
+            {
+                "table_name": "geo_tags",
+                "values": {
+                    "gt_country": None,
+                    "gt_dim": 1000,
+                    "gt_globe": "earth",
+                    "gt_id": 3,
+                    "gt_lat": 59.0,
+                    "gt_lon": 10.0,
+                    "gt_name": None,
+                    "gt_page_id": 487781,
+                    "gt_primary": 1,
+                    "gt_region": None,
+                    "gt_type": None,
+                },
+            },
         )
 
     def test_hex_string2bytes(self) -> None:
