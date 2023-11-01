@@ -786,8 +786,8 @@ def str_to_number(
     # 134217728
     # >>> str_to_number('131,072 Kebabytes')
     # 134217728
-    rv, unit, *_ = re.findall(r"\d[\d,]*|[A-Za-z]", s) + [""]
-    return int(rv.replace(",", "")) * (
+    size, unit, *_ = re.findall(r"\d[\d,]*|[A-Za-z]", s) + [""]
+    return int(size.replace(",", "")) * (
         base ** -~units.index(unit.lower()) if unit else 1
     )
 
