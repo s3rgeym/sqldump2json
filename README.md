@@ -73,6 +73,12 @@ $ echo 'insert into test (result) values (-2 + 2 * 2);' | sqldump2json
 {"table_name": "test", "values": {"result": 2}}
 ```
 
+Cheat: use together with grep for table parsing:
+
+```bash
+grep 'CREATE TABLE `users`' /path/to/dump.sql | sqldump2json | jq
+```
+
 ## Scripting
 
 If you were looking for a way how to import data from SQL to NoSQL databases and etc:
