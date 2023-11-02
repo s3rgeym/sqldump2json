@@ -45,7 +45,7 @@ echo "INSERT INTO data VALUES (1, 'foo'), (2, 'bar'), (3, 'baz');" | sqldump2jso
 {"table_name": "data", "values": [3, "baz"]}
 ```
 
-Data type conversion:
+Values are converted to dict only if the `INSERT INTO` contains a list of fields or the fields are declared in `CREATE TABLE`:
 
 ```bash
 $ sqldump2json <<< "INSERT INTO data VALUES (NULL, 3.14159265, FALSE, 'Привет', 0xDEADBEEF);" | jq
@@ -59,11 +59,7 @@ $ sqldump2json <<< "INSERT INTO data VALUES (NULL, 3.14159265, FALSE, 'Прив�
     "3q2+7w=="
   ]
 }
-```
 
-Values are converted to dict only if the `INSERT INTO` contains a list of fields or the fields are declared in `CREATE TABLE`:
-
-```bash
 $ sqldump2json <<< 'INSERT INTO `page` (title, contents) VALUES ("Title", "Text goes here");' | jq
 {
   "table_name": "page",
