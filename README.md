@@ -70,7 +70,7 @@ $ sqldump2json <<< "INSERT INTO data VALUES (NULL, 3.14159265, FALSE, 'Прив�
 }
 ```
 
-Use together with grep for table parsing:
+Using together with grep:
 
 ```bash
 grep 'INSERT INTO `users`' /path/to/dump.sql | sqldump2json | jq -r '.values[]|@tsv' > output.csv
