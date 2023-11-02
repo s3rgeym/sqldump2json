@@ -32,7 +32,10 @@ __author__ = "Sergey M"
 
 
 class Color(Enum):
-    """https://en.wikipedia.org/wiki/ANSI_escape_code"""
+    """
+    <https://en.wikipedia.org/wiki/ANSI_escape_code>
+    <https://stackoverflow.com/a/75985833/2240578>
+    """
 
     CLEAR = RESET = 0
     BLACK = 30
