@@ -64,8 +64,8 @@ class ColorHandler(logging.StreamHandler):
         logging.DEBUG: Color.CYAN,
         logging.INFO: Color.GREEN,
         logging.WARNING: Color.YELLOW,
-        logging.ERROR: Color.BRIGHT_RED,
-        logging.CRITICAL: Color.RED,
+        logging.ERROR: Color.RED,
+        logging.CRITICAL: Color.MAGENTA,
     }
 
     fmtr = logging.Formatter("[%(levelname).1s]: %(message)s")
@@ -205,7 +205,7 @@ class Token(typing.NamedTuple):
     @property
     def repr_value(self) -> Any:
         return (
-            "[BINARY]"
+            "**BINARY DATA**"
             if isinstance(self.value, bytes)
             else repr(
                 cut_text(self.value, 20)
@@ -862,11 +862,10 @@ def main(argv: Sequence[str] | None = None) -> int | None:
 
 
 class Base64Encoder(json.JSONEncoder):
-    # pylint: disable=method-hidden
     def default(self, o: Any) -> str:
         if isinstance(o, bytes):
             return b64encode(o).decode()
-        return json.JSONEncoder.default(self, o)
+        return super().default(self, o)
 
 
 if __name__ == "__main__":
