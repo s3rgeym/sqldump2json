@@ -30,10 +30,10 @@ For other shit like Ubuntu you need to do more steps:
 
 ## CLI
 
-Help:
+Usage:
 
 ```bash
-sqldump2json -h
+sqldump2json [ -h ] [ -i INPUT ] [ -o OUTPUT ] [ ... ]
 ```
 
 Output format is JSONL:
