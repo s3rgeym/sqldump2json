@@ -32,7 +32,9 @@ __author__ = "Sergey M"
 
 
 class Color(Enum):
-    RESET = 0
+    """https://en.wikipedia.org/wiki/ANSI_escape_code"""
+
+    CLEAR = RESET = 0
     BLACK = 30
     RED = auto()
     GREEN = auto()
@@ -42,16 +44,25 @@ class Color(Enum):
     CYAN = auto()
     WHITE = auto()
 
+    GRAY = 90
+    BRIGHT_RED = GRAY + RED
+    BRIGHT_GREEN = GRAY + GREEN
+    BRIGHT_YELLOW = GRAY + YELLOW
+    BRIGHT_BLUE = GRAY + BLUE
+    BRIGHT_MAGENTA = GRAY + MAGENTA
+    BRIGHT_CYAN = GRAY + CYAN
+    BRIGHT_WHITE = GRAY + WHITE
+
     def __str__(self) -> str:
         return f"\033[{self.value}m"
 
 
 class ColorHandler(logging.StreamHandler):
     COLOR_LEVELS = {
-        logging.DEBUG: Color.GREEN,
-        logging.INFO: Color.YELLOW,
-        logging.WARNING: Color.RED,
-        logging.ERROR: Color.RED,
+        logging.DEBUG: Color.CYAN,
+        logging.INFO: Color.GREEN,
+        logging.WARNING: Color.YELLOW,
+        logging.ERROR: Color.BRIGHT_RED,
         logging.CRITICAL: Color.RED,
     }
 
