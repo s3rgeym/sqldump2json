@@ -205,13 +205,17 @@ class Token(typing.NamedTuple):
     @property
     def repr_value(self) -> Any:
         return (
-            cut_text(self.value, 20)
-            if isinstance(self.value, str)
-            else self.value
+            "[BINARY]"
+            if isinstance(self.value, bytes)
+            else repr(
+                cut_text(self.value, 20)
+                if isinstance(self.value, str)
+                else self.value
+            )
         )
 
     def __repr__(self) -> str:
-        return f"token {self.repr_value!r} ({self.type}) at line {self.lineno} and column {self.colno}"
+        return f"token {self.repr_value} ({self.type}) at line {self.lineno} and column {self.colno}"
 
 
 def cut_text(s: str, n: int, dots: str = "…") -> str:
@@ -832,11 +836,13 @@ def main(argv: Sequence[str] | None = None) -> int | None:
     logger.addHandler(ColorHandler())
     if args.debug:
         logger.setLevel(logging.DEBUG)
-    parser = DumpParser(ignore_errors=not args.fail_on_error)
+    parser = DumpParser()
     try:
         count_values = 0
         for data in parser.parse(
-            source=args.input, buffer_size=args.buffer_size
+            source=args.input,
+            buffer_size=args.buffer_size,
+            ignore_errors=not args.fail_on_error,
         ):
             json.dump(
                 data,
