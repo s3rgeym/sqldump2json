@@ -45,13 +45,13 @@ class Color(Enum):
     WHITE = auto()
 
     GRAY = 90
-    BRIGHT_RED = GRAY + RED
-    BRIGHT_GREEN = GRAY + GREEN
-    BRIGHT_YELLOW = GRAY + YELLOW
-    BRIGHT_BLUE = GRAY + BLUE
-    BRIGHT_MAGENTA = GRAY + MAGENTA
-    BRIGHT_CYAN = GRAY + CYAN
-    BRIGHT_WHITE = GRAY + WHITE
+    BRIGHT_RED = auto()
+    BRIGHT_GREEN = auto()
+    BRIGHT_YELLOW = auto()
+    BRIGHT_BLUE = auto()
+    BRIGHT_MAGENTA = auto()
+    BRIGHT_CYAN = auto()
+    BRIGHT_WHITE = auto()
 
     def __str__(self) -> str:
         return f"\033[{self.value}m"
