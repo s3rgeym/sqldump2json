@@ -731,18 +731,21 @@ class DumpParser:
         self.table_fields = {}
         while not self.peek_token(TokenType.T_EOF, TokenType.T_EMPTY):
             try:
+                # Это тоже неправильно
                 if self.peek_token(
                     TokenType.T_CREATE,
-                ) and self.peek_token(
-                    TokenType.T_TABLE,
                 ):
-                    self.parse_create_table()
+                    if not self.peek_token(
+                        TokenType.T_TABLE
+                    ):    
+                        self.parse_create_table()
                 elif self.peek_token(
                     TokenType.T_INSERT,
-                ) and self.peek_token(
-                    TokenType.T_INTO,
                 ):
-                    yield from self.parse_insert()
+                    if self.peek_token(
+                        TokenType.T_INTO,
+                    ):
+                        yield from self.parse_insert()
                 else:
                     self.advance_token()
             except ParseError as ex:
