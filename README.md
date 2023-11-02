@@ -36,6 +36,15 @@ Help:
 sqldump2json -h
 ```
 
+Output format is JSONL:
+
+```bash
+echo "INSERT INTO data VALUES (1, 'foo'), (2, 'bar'), (3, 'baz');" | sqldump2json            
+{"table_name": "data", "values": [1, "foo"]}
+{"table_name": "data", "values": [2, "bar"]}
+{"table_name": "data", "values": [3, "baz"]}
+```
+
 Values are converted to dict only if the `INSERT INTO` contains a list of fields or the fields are declared in `CREATE TABLE`:
 
 ```bash
