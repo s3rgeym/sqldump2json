@@ -32,7 +32,7 @@ insert into users values (1, 'tester', 'test123'),
 Тут проверяем многострочный комментарий, чтобы выражение внутри него не обработалось
 
 /*/insert into users values ('xxx')/*/
-INSERT INTO posts VALUES(123, "Hello World!", "Hello, world!");
+INSERT INTO pages VALUES(NULL, "Hello World!", "Hello, world!");
         """
         self.assertEqual(
             # Кинет ошибку парсиннга, если внутри CREATE и INSERT встретит неожиданные токены
@@ -55,8 +55,8 @@ INSERT INTO posts VALUES(123, "Hello World!", "Hello, world!");
                     },
                 },
                 {
-                    "table_name": "posts",
-                    "values": [123, "Hello World!", "Hello, world!"],
+                    "table_name": "pages",
+                    "values": [None, "Hello World!", "Hello, world!"],
                 },
             ],
         )
