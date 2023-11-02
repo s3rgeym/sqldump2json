@@ -1,9 +1,11 @@
+import doctest
 import unittest
 from pathlib import Path
 
+import sqldump2json
 from sqldump2json import DumpParser, logger
 
-logger.handlers.clear()
+# logger.handlers.clear()
 
 CUR_DIR = Path(__file__).parent
 DUMP_FILE = CUR_DIR / "dump.sql"
@@ -16,21 +18,25 @@ class Test(unittest.TestCase):
 
     def test_insert_values(self) -> None:
         sql = """
+Любые невалидные токены вне `CREATE TABLE` и INSERT игнориуются
+
 cReAte/**/taBLe users(
     user_id int NOT NULL,
     username varchar(31) NOT NULL,
     password varchar(31) NOT NULL,
     PRIMARY KEY(user_id));
 
-ошибки парсинга должны игнорироваться
-
 insert into users values (1, 'tester', 'test123'),
-    (2, 'dummyuser', '123456')
+    (2, 'dummyuser', '123456');
 
+Тут проверяем многострочный комментарий, чтобы выражение внутри него не обработалось
+
+/*/insert into users values ('xxx')/*/
 INSERT INTO posts VALUES(123, "Hello World!", "Hello, world!");
         """
         self.assertEqual(
-            [*self.parser.parse(sql)],
+            # Кинет ошибку парсиннга, если внутри CREATE и INSERT встретит неожиданные токены
+            [*self.parser.parse(sql, ignore_errors=False)],
             [
                 {
                     "table_name": "users",
@@ -115,3 +121,8 @@ INSERT INTO posts VALUES(123, "Hello World!", "Hello, world!");
                     )
                     return
         self.fail()
+
+
+# def load_tests(loader, tests, ignore):
+#     tests.addTests(doctest.DocTestSuite(sqldump2json))
+#     return tests

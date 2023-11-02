@@ -48,11 +48,11 @@ class Color(Enum):
 
 class ColorHandler(logging.StreamHandler):
     COLOR_LEVELS = {
-        logging.DEBUG: Color.CYAN,
-        logging.INFO: Color.GREEN,
-        logging.WARNING: Color.YELLOW,
+        logging.DEBUG: Color.GREEN,
+        logging.INFO: Color.YELLOW,
+        logging.WARNING: Color.RED,
         logging.ERROR: Color.RED,
-        logging.CRITICAL: Color.MAGENTA,
+        logging.CRITICAL: Color.RED,
     }
 
     fmtr = logging.Formatter("[%(levelname).1s]: %(message)s")
@@ -422,21 +422,26 @@ class SQLTokenizer:
                         return self.token(TokenType.T_INVALID_TOKEN, val)
                     if self.ch == quote_char:
                         break
+                    # https://dev.mysql.com/doc/refman/8.0/en/string-literals.html
                     if self.ch == self.ESCAPE_CHAR:
                         self.advance()
                         match self.ch:
                             case "0":
                                 val += "\0"
+                            case "b":
+                                val += "\b"
                             case "n":
                                 val += "\n"
                             case "r":
                                 val += "\r"
                             case "t":
                                 val += "\t"
-                            case "v":
-                                val += "\v"
-                            case _:
+                            case "Z":
+                                val += chr(26)
+                            case "'" | '"' | "\\" | "%" | "_":
                                 val += self.ch
+                            case _:
+                                val += "\\" + self.ch
                     else:
                         val += self.ch
                 # нужно преобразовать escape-последовательности
@@ -480,7 +485,7 @@ class UnexpectedEnd(ParseError):
     error_message: str = "Unexpected End"
 
 
-class InsertData(TypedDict):
+class InsertValues(TypedDict):
     table_name: str
     values: dict[str, Any] | list[Any]
 
@@ -600,10 +605,9 @@ class DumpParser:
             rv += self.cur_token.value + self.quoted_identifier()
         return rv
 
-    def parse_insert(self) -> Iterable[InsertData]:
+    def parse_insert(self) -> Iterable[InsertValues]:
         # INSERT INTO tbl (col1, col2) VALUES ('a', 1);
         logger.debug("parse insert values")
-        self.expect_token(TokenType.T_INTO)
         table_name = self.table_identifier()
         logger.debug(f"{table_name=}")
         # имена колонок опциональны
@@ -692,12 +696,14 @@ class DumpParser:
     def parse(
         self,
         source: typing.TextIO | str,
+        *,
         buffer_size: int = 8192,
-    ) -> Iterable[InsertData]:
+        ignore_errors: bool = True,
+    ) -> Iterable[InsertValues]:
         logger.debug("reading buffer size: %d bytes", buffer_size)
-        logger.debug(
-            "ignore parse errors: %s", ["off", "on"][self.ignore_errors]
-        )
+        # ignore errors можно перезаписать
+        ignore_errors = ignore_errors and self.ignore_errors
+        logger.debug("ignore parse errors: %s", ["off", "on"][ignore_errors])
         self.tokenizer = self.tokenizer_class(source, buffer_size)
         self.tokenizer_it = iter(self.tokenizer)
         self.next_token = Token(TokenType.T_EMPTY)
@@ -713,12 +719,14 @@ class DumpParser:
                     TokenType.T_TABLE
                 ):
                     self.parse_create_table()
-                elif self.peek_token(TokenType.T_INSERT):
+                elif self.peek_token(TokenType.T_INSERT) and self.peek_token(
+                    TokenType.T_INTO
+                ):
                     yield from self.parse_insert()
                 else:
                     self.advance_token()
             except ParseError as ex:
-                if not self.ignore_errors:
+                if not ignore_errors:
                     raise ex
                 logger.warning(ex)
 
@@ -790,7 +798,7 @@ def str_to_number(
         raise ValueError(f"invalid size: {s!r}")
     size, unit = match.groups()
     return int(size.replace(",", "")) * (
-        base ** -~units.lower().index(unit[0].lower()) if unit else 1
+        base ** -~units.lower().index(unit.lower()) if unit else 1
     )
 
 
