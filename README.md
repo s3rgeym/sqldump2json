@@ -57,7 +57,7 @@ $ sqldump2json <<< 'INSERT INTO `page` (title, contents) VALUES ("Title", "Text 
   }
 }
 
-$ sqldump2json <<< "INSERT INTO data VALUES (null, 3.14159265, false, 'Привет', 0xDEADBEEF);" | jq
+$ sqldump2json <<< "INSERT INTO data VALUES (NULL, 3.14159265, FALSE, 'Привет', 0xDEADBEEF);" | jq
 {
   "table_name": "data",
   "values": [
