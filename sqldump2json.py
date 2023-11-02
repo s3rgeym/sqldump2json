@@ -112,7 +112,7 @@ class TokenType(AutoName):
     T_AND = auto()
     T_ASSIGN = auto()
     T_BACKTICK_STRING = auto()
-    T_BOOL = auto()
+    T_BOOLEAN = auto()
     T_COMMA = auto()
     T_CONCAT = auto()
     T_DIV = auto()
@@ -291,6 +291,9 @@ class SQLTokenizer:
             elif c:
                 self.colno += 1
             yield c
+        # fix: RuntimeError: generator raised StopIteration
+        # возникает если stdin пуст
+        yield ""
 
     def advance(self) -> None:
         self.ch, self.peek_ch = (
@@ -343,7 +346,7 @@ class SQLTokenizer:
                 case "NULL":
                     return self.token(TokenType.T_NULL, None)
                 case "TRUE" | "FALSE":
-                    return self.token(TokenType.T_BOOL, val == "TRUE")
+                    return self.token(TokenType.T_BOOLEAN, val == "TRUE")
                 case (
                     "AND"
                     | "CHECK"
@@ -506,6 +509,7 @@ class DumpParser:
     def peek_token(self, *expected: TokenType) -> bool:
         """Проверить тип следующего токена и сделать его текущим"""
         if self.next_token.type in expected:
+            logger.debug("peek %s", self.next_token)
             self.advance_token()
             return True
         return False
@@ -582,7 +586,7 @@ class DumpParser:
         return self.expect_token(
             TokenType.T_INTEGER,
             TokenType.T_FLOAT,
-            TokenType.T_BOOL,
+            TokenType.T_BOOLEAN,
             TokenType.T_NULL,
             TokenType.T_STRING,
             TokenType.T_DOUBLE_QUOTED_STRING,  # В MySQL можно
@@ -814,6 +818,7 @@ def main(argv: Sequence[str] | None = None) -> int | None:
         logger.setLevel(logging.DEBUG)
     parser = DumpParser(ignore_errors=not args.fail_on_error)
     try:
+        count = 0  # упадет с пустым вводом
         for count, value in enumerate(
             parser.parse(source=args.input, buffer_size=args.buffer_size), 1
         ):
