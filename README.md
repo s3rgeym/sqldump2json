@@ -30,6 +30,8 @@ For other shit like Ubuntu you need to do more steps:
 
 ## CLI
 
+![image](https://github.com/alacritty/alacritty/assets/12753171/c2dad1e7-7fd4-4c0d-a408-c85c4e0a1037)
+
 Help:
 
 ```bash
