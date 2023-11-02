@@ -106,6 +106,7 @@ logger = logging.getLogger(__name__)
 #     EOF = "$"
 
 
+# К удалению
 class AutoName(str, Enum):
     @staticmethod
     def _generate_next_value_(
@@ -117,6 +118,7 @@ class AutoName(str, Enum):
         return name
 
 
+# Тут enum.IntFlag бесполезен
 class TokenType(AutoName):
     T_ALTER = auto()
     T_AND = auto()
@@ -729,12 +731,16 @@ class DumpParser:
         self.table_fields = {}
         while not self.peek_token(TokenType.T_EOF, TokenType.T_EMPTY):
             try:
-                if self.peek_token(TokenType.T_CREATE) and self.peek_token(
-                    TokenType.T_TABLE
+                if self.peek_token(
+                    TokenType.T_CREATE,
+                ) and self.peek_token(
+                    TokenType.T_TABLE,
                 ):
                     self.parse_create_table()
-                elif self.peek_token(TokenType.T_INSERT) and self.peek_token(
-                    TokenType.T_INTO
+                elif self.peek_token(
+                    TokenType.T_INSERT,
+                ) and self.peek_token(
+                    TokenType.T_INTO,
                 ):
                     yield from self.parse_insert()
                 else:
