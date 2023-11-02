@@ -39,24 +39,15 @@ sqldump2json [ -h ] [ -i INPUT ] [ -o OUTPUT ] [ ... ]
 Output format is JSONL:
 
 ```bash
-echo "INSERT INTO data VALUES (1, 'foo'), (2, 'bar'), (3, 'baz');" | sqldump2json            
+echo "INSERT INTO data VALUES (1, 'foo'), (2, 'bar'), (3, 'baz');" | sqldump2json
 {"table_name": "data", "values": [1, "foo"]}
 {"table_name": "data", "values": [2, "bar"]}
 {"table_name": "data", "values": [3, "baz"]}
 ```
 
-Values are converted to dict only if the `INSERT INTO` contains a list of fields or the fields are declared in `CREATE TABLE`:
+Data type conversion:
 
 ```bash
-$ sqldump2json <<< 'INSERT INTO `page` (title, contents) VALUES ("Title", "Text goes here");' | jq
-{
-  "table_name": "page",
-  "values": {
-    "title": "Title",
-    "contents": "Text goes here"
-  }
-}
-
 $ sqldump2json <<< "INSERT INTO data VALUES (NULL, 3.14159265, FALSE, 'Привет', 0xDEADBEEF);" | jq
 {
   "table_name": "data",
@@ -70,10 +61,23 @@ $ sqldump2json <<< "INSERT INTO data VALUES (NULL, 3.14159265, FALSE, 'Прив�
 }
 ```
 
+Values are converted to dict only if the `INSERT INTO` contains a list of fields or the fields are declared in `CREATE TABLE`:
+
+```bash
+$ sqldump2json <<< 'INSERT INTO `page` (title, contents) VALUES ("Title", "Text goes here");' | jq
+{
+  "table_name": "page",
+  "values": {
+    "title": "Title",
+    "contents": "Text goes here"
+  }
+}
+```
+
 Using together with grep:
 
 ```bash
-grep 'INSERT INTO `users`' /path/to/dump.sql | sqldump2json | jq -r '.values[]|@tsv' > output.csv
+grep 'INSERT INTO `users`' /path/to/dump.sql | sqldump2json | jq -r '.values | [.username, .password] | @tsv' > output.csv
 ```
 
 Also supports basic arifmetic and boolean operations:
