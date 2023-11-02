@@ -81,6 +81,9 @@ class ColorHandler(logging.StreamHandler):
 
 logger = logging.getLogger(__name__)
 
+# Прячем весь вывод (мне не нравится что в тестах выводит что-то)
+logger.addHandler(logging.NullHandler())
+
 # При наследовании от просто type:
 # TypeError: metaclass conflict: the metaclass of a derived class must be a (non-strict) subclass of the metaclasses of all its bases
 # class TokensMeta(EnumType):
@@ -647,15 +650,15 @@ class DumpParser:
                     break
                 self.expect_token(TokenType.T_COMMA)
             column_names = self.table_fields.get(table_name, column_names)
-            if column_names and len(column_names) != len(values):
-                raise ParseError(
-                    f"missmatch number of column names and number of values for table {table_name!r}"
-                )
+            if column_names:
+                if len(column_names) != len(values):
+                    raise ParseError(
+                        f"missmatch number of column names and number of values for table {table_name!r}"
+                    )
+                values = dict(zip(column_names, values))
             yield {
                 "table_name": table_name,
-                "values": dict(zip(column_names, values))
-                if column_names
-                else values.copy(),
+                "values": values.copy(),
             }
             # counter += 1
             if self.peek_token(TokenType.T_COMMA):
@@ -831,20 +834,21 @@ def main(argv: Sequence[str] | None = None) -> int | None:
         logger.setLevel(logging.DEBUG)
     parser = DumpParser(ignore_errors=not args.fail_on_error)
     try:
-        count = 0  # упадет с пустым вводом
-        for count, value in enumerate(
-            parser.parse(source=args.input, buffer_size=args.buffer_size), 1
+        count_values = 0
+        for data in parser.parse(
+            source=args.input, buffer_size=args.buffer_size
         ):
             json.dump(
-                value,
+                data,
                 fp=args.output,
                 ensure_ascii=False,
                 cls=Base64Encoder,
             )
             args.output.write(os.linesep)
             args.output.flush()
-        logger.info("Total values in %r: %d", args.input.name, count)
-    except ParseError as ex:
+            count_values += 1
+        logger.info("Total values in %r: %d", args.input.name, count_values)
+    except Exception as ex:
         logger.fatal(ex)
         return 1
     except KeyboardInterrupt:
