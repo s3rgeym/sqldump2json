@@ -43,7 +43,6 @@ class Color(Enum):
     MAGENTA = auto()
     CYAN = auto()
     WHITE = auto()
-
     GRAY = 90
     BRIGHT_RED = auto()
     BRIGHT_GREEN = auto()
