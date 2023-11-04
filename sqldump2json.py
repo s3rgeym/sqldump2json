@@ -60,11 +60,11 @@ class Color(Enum):
 
 class ColorHandler(logging.StreamHandler):
     COLOR_LEVELS = {
-        logging.DEBUG: Color.CYAN,
-        logging.INFO: Color.GREEN,
-        logging.WARNING: Color.YELLOW,
-        logging.ERROR: Color.RED,
-        logging.CRITICAL: Color.MAGENTA,
+        logging.DEBUG: Color.BRIGHT_CYAN,
+        logging.INFO: Color.BRIGHT_GREEN,
+        logging.WARNING: Color.BRIGHT_YELLOW,
+        logging.ERROR: Color.BRIGHT_RED,
+        logging.CRITICAL: Color.BRIGHT_MAGENTA,
     }
 
     fmtr = logging.Formatter("[%(levelname).1s]: %(message)s")
@@ -523,7 +523,8 @@ class UnexpectedEnd(ParseError):
 
 
 class InsertValues(TypedDict):
-    table_name: str
+    table: str
+    schema: typing.NotRequired[str]
     values: dict[str, Any] | list[Any]
 
 
@@ -632,8 +633,8 @@ class DumpParser:
     def parse_insert(self) -> Iterable[InsertValues]:
         # INSERT INTO tbl (col1, col2) VALUES ('a', 1);
         logger.debug("parse insert values")
-        table_name, schema = self.table_name()
-        logger.debug(f"{table_name=}; {schema=}")
+        table_name, table_schema = self.table_name()
+        logger.debug(f"{table_name=}; {table_schema=}")
         # имена колонок опциональны
         column_names = []
         if self.peek_token(TokenType.T_LPAREN):
@@ -651,9 +652,10 @@ class DumpParser:
                 if self.peek_token(TokenType.T_RPAREN):
                     break
                 self.expect_token(TokenType.T_COMMA)
-            schema = schema or self.current_schema
-            column_names = self.table_fields[schema].get(
-                table_name, column_names
+            table_schema = table_schema or self.current_schema
+            column_names = self.table_fields[table_schema].get(
+                table_name,
+                column_names,
             )
             if column_names:
                 if len(column_names) != len(values):
@@ -663,7 +665,7 @@ class DumpParser:
                 values = dict(zip(column_names, values))
             yield {
                 "table": table_name,
-                "schema": schema,
+                "schema": table_schema,
                 "values": values.copy(),
             }
             # counter += 1
@@ -849,6 +851,10 @@ def str_to_number(
 #     return v.lower() in ("yes", "true", "t", "1", "on")
 
 
+def skip_none(o: dict) -> dict:
+    return {k: v for k, v in o.items() if v is not None}
+
+
 def main(argv: Sequence[str] | None = None) -> int | None:
     args = _parse_args(argv)
     # logger тормозная вещь так как блокирует основной поток
@@ -864,7 +870,7 @@ def main(argv: Sequence[str] | None = None) -> int | None:
             ignore_errors=not args.fail_on_error,
         ):
             json.dump(
-                data,
+                skip_none(data),
                 fp=args.output,
                 ensure_ascii=False,
                 cls=Base64Encoder,
