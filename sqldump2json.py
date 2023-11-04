@@ -123,7 +123,6 @@ logger.addHandler(logging.NullHandler())
 #         return name
 
 
-# Тут enum.IntFlag бесполезен
 class TokenType(IntFlag):
     # Исп в INSERT
     T_AND = auto()
