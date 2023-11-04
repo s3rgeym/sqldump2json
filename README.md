@@ -12,7 +12,7 @@ RESTRICTIONS:
 
 - Syntax is checked only for `INSERT INTO` and `CREATE TABLE`.
 - The common SQL syntax is used which does not fully correspond to either MySQL or Postgres.
-- Functin calls in INSERT satetements are not supported.
+- Function calls and subquieries in INSERT satetements are not supported.
 
 Installation for normal Arch-based Linux ditros:
 

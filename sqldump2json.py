@@ -124,6 +124,7 @@ logger.addHandler(logging.NullHandler())
 
 
 class TokenType(IntFlag):
+    # Вместо кучи разных T_INSERT и T_UPDATE можно использовать T_KEYWORD или T_OPERATOR
     # Исп в INSERT
     T_AND = auto()
     T_ASSIGN = auto()
@@ -157,7 +158,6 @@ class TokenType(IntFlag):
     T_QMARK = auto()
     T_QUOTED = auto()
     T_RPAREN = auto()
-    T_SELECT = auto()
     T_SEMI = auto()
     T_VALUES = auto()
 
@@ -528,6 +528,9 @@ class InsertValues(TypedDict):
     values: dict[str, Any] | list[Any]
 
 
+MISSING = object()
+
+
 @dataclass
 class DumpParser:
     _: dataclasses.KW_ONLY
@@ -541,17 +544,19 @@ class DumpParser:
             next(self.tokenizer_it, Token(TokenType.T_EMPTY)),
         )
 
-    def peek_token(self, expected: TokenType) -> bool:
-        """Проверить тип следующего токена и сделать его текущим"""
-        if (self.next_token.type & expected) == self.next_token.type:
+    def peek_token(self, tt: TokenType, val: Any = MISSING) -> bool:
+        """Проверить тип и значение следующего токена и если они совпадают, сделать его текущим"""
+        if self.next_token.type & tt == self.next_token.type and (
+            val is MISSING or val == val
+        ):
             logger.debug("peek %s", self.next_token)
             self.advance_token()
             return True
         return False
 
-    def expect_token(self, expected: TokenType) -> Self:
-        if not self.peek_token(expected):
-            raise ParseError(f"unexpected: {self.next_token}")
+    def expect_token(self, tt: TokenType, val: Any = MISSING) -> Self:
+        if not self.peek_token(tt, val):
+            raise ParseError(f"untt: {self.next_token}")
         # Когда нечего вернуть, то лучше всего возвращать self
         return self
 
@@ -746,18 +751,17 @@ class DumpParser:
         self.current_schema = None
         while not self.peek_token(TokenType.T_EOF | TokenType.T_EMPTY):
             try:
-                # MySQL use database
+                # MySQL, SQL Server
+                # use database
                 if self.peek_token(TokenType.T_USE):
                     self.current_schema = self.quoted_id()
                     self.expect_token(TokenType.T_SEMI)
-                # Postgres change schema
+                # PostgreSQL
                 # set search_path='public';
                 elif self.peek_token(TokenType.T_SET):
-                    if (
-                        self.peek_token(TokenType.T_QUOTED_ID)
-                        and self.cur_token.value == "search_path"
-                    ):
-                        if self.peek_token(TokenType.T_EQ):
+                    # TODO: посмотреть какой синтаксис правильный
+                    if self.peek_token(TokenType.T_ID, "search_path"):
+                        if self.peek_token(TokenType.T_EQ | TokenType.T_TO):
                             self.current_schema = self.expect_token(
                                 TokenType.T_QUOTED
                             ).cur_token.value
@@ -831,7 +835,10 @@ def _parse_args(argv: Sequence[str] | None) -> NameSpace:
 
 
 def str_to_number(
-    s: str, *, units: typing.Sequence[str] = "KMG", base: int = 1024
+    s: str,
+    *,
+    units: typing.Sequence[str] = "KMG",
+    base: int = 1024,
 ) -> int:
     # >>> str_to_number('\t128\n')
     # 128
@@ -864,13 +871,16 @@ def main(argv: Sequence[str] | None = None) -> int | None:
     parser = DumpParser()
     try:
         count_values = 0
-        for data in parser.parse(
-            source=args.input,
-            buffer_size=args.buffer_size,
-            ignore_errors=not args.fail_on_error,
+        for data in map(
+            skip_none,
+            parser.parse(
+                source=args.input,
+                buffer_size=args.buffer_size,
+                ignore_errors=not args.fail_on_error,
+            ),
         ):
             json.dump(
-                skip_none(data),
+                data,
                 fp=args.output,
                 ensure_ascii=False,
                 cls=Base64Encoder,
