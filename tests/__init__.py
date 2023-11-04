@@ -126,6 +126,18 @@ INSERT INTO db.pages VALUES(NULL, "Hello World!", "Hello, world!");
                     return
         self.fail()
 
+    def test_schema(self) -> None:
+        r = next(
+            self.parser.parse(
+                """
+        set search_path = 'public';
+        ...
+        insert into users values ('tester123', 'asd123');
+        """
+            )
+        )
+        self.assertEqual(r["schema"], "public")
+
 
 # def load_tests(loader, tests, ignore):
 #     tests.addTests(doctest.DocTestSuite(sqldump2json))
