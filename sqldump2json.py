@@ -556,7 +556,7 @@ class DumpParser:
 
     def expect_token(self, tt: TokenType, val: Any = MISSING) -> Self:
         if not self.peek_token(tt, val):
-            raise ParseError(f"untt: {self.next_token}")
+            raise ParseError(f"unexcpected: {self.next_token}")
         # Когда нечего вернуть, то лучше всего возвращать self
         return self
 
