@@ -546,8 +546,8 @@ class DumpParser:
 
     def peek_token(self, tt: TokenType, val: Any = MISSING) -> bool:
         """Проверить тип и значение следующего токена и если они совпадают, сделать его текущим"""
-        if self.next_token.type & tt == self.next_token.type and (
-            val is MISSING or val == val
+        if (self.next_token.type & tt) == self.next_token.type and (
+            val is MISSING or val == self.next_token.value
         ):
             logger.debug("peek %s", self.next_token)
             self.advance_token()
@@ -556,7 +556,7 @@ class DumpParser:
 
     def expect_token(self, tt: TokenType, val: Any = MISSING) -> Self:
         if not self.peek_token(tt, val):
-            raise ParseError(f"unexcpected: {self.next_token}")
+            raise ParseError(f"unexpected: {self.next_token}")
         # Когда нечего вернуть, то лучше всего возвращать self
         return self
 
