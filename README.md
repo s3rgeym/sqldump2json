@@ -4,9 +4,14 @@
 
 Converts SQL dump to a JSON stream.
 
-A tool for administrators, data scientists and hackers. With this tool you no longer need to import dumps into Databases. You can extract INSERT data as JSON and analyze them with [jq](https://github.com/jqlang/jq) or insert into Mongo/Elastic/etc. The dump is not read entirely into RAM, so this utility can be used to process files of any size. And it can even parse corrupted dumps.
+A tool for administrators, data scientists and hackers. With this tool you no longer need to import dumps into Databases. You can extract INSERT data as JSON and analyze them with [jq](https://github.com/jqlang/jq) or insert into MongoDB/Elastic/etc. The dump is not read entirely into RAM, so this utility can be used to process files of any size. And it can even parse corrupted dumps.
 
 Supported DBMS: MySQL, SQL Server, PotsgreSQL and some other (not all formats).
+
+RESTRICTIONS:
+
+- Syntax is checked only for `INSERT INTO` and `CREATE TABLE`.
+- The common SQL syntax is used which does not fully correspond to either MySQL or Postgres.
 
 Installation for normal Arch-based Linux ditros:
 
@@ -23,10 +28,10 @@ pipx install git+https://github.com/s3rgeym/sqldump2json.git
 
 For other shit like Ubuntu you need to do more steps:
 
-* Install pyenv or asdf-vm.
-* Install latest python version and make it global via pyenv or asdf-vm.
-* Install sqldump2json.
-* Or use Docker.
+- Install pyenv or asdf-vm.
+- Install latest python version and make it global via pyenv or asdf-vm.
+- Install sqldump2json.
+- Or use Docker.
 
 ## CLI
 
@@ -51,7 +56,6 @@ Values are converted to dict only if the `INSERT INTO` contains a list of fields
 $ sqldump2json <<< "INSERT INTO data VALUES (NULL, 3.14159265, FALSE, 'Привет', 0xDEADBEEF);" | jq
 {
   "table": "data",
-  "schema": null,
   "values": [
     null,
     3.14159265,
@@ -64,7 +68,6 @@ $ sqldump2json <<< "INSERT INTO data VALUES (NULL, 3.14159265, FALSE, 'Прив�
 $ sqldump2json <<< 'INSERT INTO `page` (title, contents) VALUES ("Title", "Text goes here");' | jq
 {
   "table": "page",
-  "schema": null,
   "values": {
     "title": "Title",
     "contents": "Text goes here"
@@ -75,7 +78,7 @@ $ sqldump2json <<< 'INSERT INTO `page` (title, contents) VALUES ("Title", "Text 
 Using together with grep:
 
 ```bash
-grep 'INSERT INTO `users`' /path/to/dump.sql | sqldump2json | jq -r '.values | [.username, .password] | @tsv' > output.csv
+grep 'INSERT INTO `users`' /path/to/dump.sql | sqldump2json | jq -r '.values | [.username, .email, .password] | @tsv' > output.csv
 ```
 
 Also supports basic arifmetic and boolean operations:
@@ -109,9 +112,10 @@ poetry run python -m unittest
 
 ## TODO LIST
 
-* Add support [mysql strings with charset](https://dev.mysql.com/doc/refman/8.0/en/charset-introducer.html) (eg, `_binary '\x00...'`). + `X'...'`
-* Строки должны конкатенироваться, если идут подряд.
-* Improve I/O performance. Тут хз что делать, потому как буфер не особо помогает. Токены так или иначе нужно читать посимвольно. Можно было разбирать целые строки, НО я смотрел дампы, у меня и отдельные строки занимают по 1.5 гигабайта, что, конечно, уже в раму влезет, но текущая реализация тем и хороша, что жрет не больше пары сотен мегабайт (зато грузит процессор). У меня есть дамп одного взломанного сайта, он весит 23 гига и в нем содержится почти 160 миллионов записей, если запустить его парсинг без вывода в консоль отладочной информации (!это очень важно, тк вывод в консоль сильно тормозит) с дополнительными флагами `-b128k -o /dev/null`, он будет парситься 5 часов, те выходят жалкие ~10-15k записей в секунду, что меня не очень устраивает, поэтому советую использовать совместно с grep. Тут, конечно, негативно влияет и использование Btrfs со сжатием (сжатый дамп на диске занимает всего 3.6G). От игры с размером буфера я значительного прироста скорости парсинга не заметил (возможно, эта сомнительная фича будет удалена). Ускорения получиться добиться только при переписании проекта на что-то другое. Я пробовал через [codon](https://github.com/exaloop/codon) его запускать, но тот много чего не поддерживает, например, `dataclasses`.
+- Add support [mysql strings with charset](https://dev.mysql.com/doc/refman/8.0/en/charset-introducer.html) (eg, `_binary '\x00...'`). + `X'...'`
+- Строки должны конкатенироваться, если идут подряд.
+- Improve I/O performance. Тут хз что делать, потому как буфер не особо помогает. Токены так или иначе нужно читать посимвольно. Можно было разбирать целые строки, НО я смотрел дампы, у меня и отдельные строки занимают по 1.5 гигабайта, что, конечно, уже в раму влезет, но текущая реализация тем и хороша, что жрет не больше пары сотен мегабайт (зато грузит процессор). У меня есть дамп одного взломанного сайта, он весит 23 гига и в нем содержится почти 160 миллионов записей, если запустить его парсинг без вывода в консоль отладочной информации (!это очень важно, тк вывод в консоль сильно тормозит) с дополнительными флагами `-b128k -o /dev/null`, он будет парситься 5 часов, те выходят жалкие ~10-15k записей в секунду, что меня не очень устраивает, поэтому советую использовать совместно с grep. Тут, конечно, негативно влияет и использование Btrfs со сжатием (сжатый дамп на диске занимает всего 3.6G). От игры с размером буфера я значительного прироста скорости парсинга не заметил (возможно, эта сомнительная фича будет удалена). Ускорения получиться добиться только при переписании проекта на что-то другое. Я пробовал через [codon](https://github.com/exaloop/codon) его запускать, но тот много чего не поддерживает, например, `dataclasses`.
+- По достижению 1000 строк, разбить на файлы.
 
 ## Notes
 
