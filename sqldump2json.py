@@ -10,8 +10,6 @@
 """Parse SQL Dumps to JSON Objects"""
 import argparse
 import binascii
-
-# from collections import defaultdict
 import dataclasses
 import functools
 import io
@@ -24,8 +22,9 @@ import string
 import sys
 import typing
 from base64 import b64encode
+from collections import defaultdict
 from dataclasses import dataclass
-from enum import Enum, auto
+from enum import Enum, IntFlag, auto
 from typing import Any, Iterable, Self, Sequence, Type, TypedDict
 
 __author__ = "Sergey M"
@@ -113,38 +112,38 @@ logger.addHandler(logging.NullHandler())
 
 
 # К удалению
-class AutoName(str, Enum):
-    @staticmethod
-    def _generate_next_value_(
-        name: str,
-        start: int,
-        count: int,
-        last_values: list[Any],
-    ) -> Any:
-        return name
+# class AutoName(str, Enum):
+#     @staticmethod
+#     def _generate_next_value_(
+#         name: str,
+#         start: int,
+#         count: int,
+#         last_values: list[Any],
+#     ) -> Any:
+#         return name
 
 
 # Тут enum.IntFlag бесполезен
-class TokenType(AutoName):
-    T_ALTER = auto()
+class TokenType(IntFlag):
+    # Исп в INSERT
     T_AND = auto()
     T_ASSIGN = auto()
-    T_BACKTICK_STRING = auto()
-    T_BOOLEAN = auto()
+    T_BACTICK_QUOTED = auto()
+    T_BOOL = auto()
     T_COMMA = auto()
     T_CONCAT = auto()
     T_DIV = auto()
-    T_DOUBLE_QUOTED_STRING = auto()
+    T_DOUBLE_QUOTED = auto()
     T_EOF = auto()
     T_EQ = auto()
     T_FLOAT = auto()
     T_FROM = auto()
     T_GT = auto()  # greater than
     T_GTE = auto()  # greater than or equal
-    T_HEX_STRING = auto()
-    T_IDENTIFIER = auto()
+    T_HEX = auto()
+    T_ID = auto()
     T_INSERT = auto()
-    T_INTEGER = auto()
+    T_INT = auto()
     T_INTO = auto()
     T_LPAREN = auto()
     T_LT = auto()  # less than
@@ -157,13 +156,19 @@ class TokenType(AutoName):
     T_PERIOD = auto()
     T_PLUS = auto()
     T_QMARK = auto()
+    T_QUOTED = auto()
     T_RPAREN = auto()
     T_SELECT = auto()
-    T_SEMICOLON = auto()
-    T_SET = auto()
-    T_STRING = auto()
+    T_SEMI = auto()
     T_VALUES = auto()
 
+    T_SCALAR = (
+        T_INT | T_FLOAT | T_BOOL | T_NULL | T_QUOTED | T_DOUBLE_QUOTED | T_HEX
+    )
+
+    T_QUOTED_ID = T_BACTICK_QUOTED | T_DOUBLE_QUOTED | T_ID
+
+    # Исп в CREATE
     # https://www.postgresql.org/docs/current/ddl-constraints.html
     T_CREATE = auto()
     T_TABLE = auto()
@@ -185,6 +190,11 @@ class TokenType(AutoName):
     T_DUMMY = auto()
     ...
 
+    # Смена базы
+    T_USE = auto()
+    T_SET = auto()
+    T_TO = auto()
+
     # Ошибки
     T_UNEXPECTED_CHAR = auto()
     T_INVALID_TOKEN = auto()
@@ -193,7 +203,7 @@ class TokenType(AutoName):
     T_EMPTY = auto()
 
     def __str__(self) -> str:
-        return self.value
+        return self.name
 
 
 class Token(typing.NamedTuple):
@@ -259,7 +269,7 @@ class SQLTokenizer:
         "-": TokenType.T_MINUS,  # substraction
         "-=": TokenType.T_DUMMY,
         ",": TokenType.T_COMMA,
-        ";": TokenType.T_SEMICOLON,
+        ";": TokenType.T_SEMI,
         ":=": TokenType.T_ASSIGN,
         "!=": TokenType.T_NE,
         ".": TokenType.T_PERIOD,
@@ -368,7 +378,7 @@ class SQLTokenizer:
                 case "NULL":
                     return self.token(TokenType.T_NULL, None)
                 case "TRUE" | "FALSE":
-                    return self.token(TokenType.T_BOOLEAN, val == "TRUE")
+                    return self.token(TokenType.T_BOOL, val == "TRUE")
                 case (
                     "AND"
                     | "CHECK"
@@ -386,13 +396,16 @@ class SQLTokenizer:
                     | "NOT"
                     | "OR"
                     | "PRIMARY"
+                    | "SET"
                     | "SPATIAL"
                     | "TABLE"
+                    | "TO"
                     | "UNIQUE"
+                    | "USE"
                     | "VALUES"
                 ):
                     return self.token(TokenType[f"T_{upper}"], val)
-            return self.token(TokenType.T_IDENTIFIER, val)
+            return self.token(TokenType.T_ID, val)
         # бинарные данные хранятся в Неведомой Ебанной Хуйне
         if self.ch == "0" and self.peek_ch.lower() == "x":
             val = ""
@@ -410,7 +423,7 @@ class SQLTokenizer:
                 # )
                 return self.token(TokenType.T_INVALID_TOKEN)
             # hex string => bytes
-            return self.token(TokenType.T_HEX_STRING, binascii.unhexlify(val))
+            return self.token(TokenType.T_HEX, binascii.unhexlify(val))
         # числа
         # self.ch.isnumeric() использовать нельзя:
         # ValueError: invalid literal for int() with base 10: '³'
@@ -429,13 +442,13 @@ class SQLTokenizer:
             return (
                 self.token(TokenType.T_FLOAT, float(val))
                 if self.PERIOD_CHAR in val
-                else self.token(TokenType.T_INTEGER, int(val))
+                else self.token(TokenType.T_INT, int(val))
             )
         # строки с разными типами кавычек
         for quote_char, token_type in [
-            (self.QUOTE_CHAR, TokenType.T_STRING),
-            (self.DOUBLE_QUOTE_CHAR, TokenType.T_DOUBLE_QUOTED_STRING),
-            (self.BACKTICK_CHAR, TokenType.T_BACKTICK_STRING),
+            (self.QUOTE_CHAR, TokenType.T_QUOTED),
+            (self.DOUBLE_QUOTE_CHAR, TokenType.T_DOUBLE_QUOTED),
+            (self.BACKTICK_CHAR, TokenType.T_BACTICK_QUOTED),
         ]:
             if self.ch == quote_char:
                 # кавычки не нужно запоминать
@@ -528,16 +541,16 @@ class DumpParser:
             next(self.tokenizer_it, Token(TokenType.T_EMPTY)),
         )
 
-    def peek_token(self, *expected: TokenType) -> bool:
+    def peek_token(self, expected: TokenType) -> bool:
         """Проверить тип следующего токена и сделать его текущим"""
-        if self.next_token.type in expected:
+        if (self.next_token.type & expected) == self.next_token.type:
             logger.debug("peek %s", self.next_token)
             self.advance_token()
             return True
         return False
 
-    def expect_token(self, *expected: TokenType) -> Self:
-        if not self.peek_token(*expected):
+    def expect_token(self, expected: TokenType) -> Self:
+        if not self.peek_token(expected):
             raise ParseError(f"unexpected: {self.next_token}")
         # Когда нечего вернуть, то лучше всего возвращать self
         return self
@@ -588,7 +601,7 @@ class DumpParser:
 
     def muldiv(self) -> Any:
         rv = self.primary()
-        while self.peek_token(TokenType.T_MUL, TokenType.T_DIV):
+        while self.peek_token(TokenType.T_MUL | TokenType.T_DIV):
             if self.cur_token.type == TokenType.T_MUL:
                 rv *= self.primary()
             else:
@@ -603,44 +616,30 @@ class DumpParser:
             rv = self.expr()
             self.expect_token(TokenType.T_RPAREN)
             return rv
-        if self.peek_token(TokenType.T_IDENTIFIER):
+        if self.peek_token(TokenType.T_ID):
             return None
-        return self.expect_token(
-            TokenType.T_INTEGER,
-            TokenType.T_FLOAT,
-            TokenType.T_BOOLEAN,
-            TokenType.T_NULL,
-            TokenType.T_STRING,
-            TokenType.T_DOUBLE_QUOTED_STRING,  # В MySQL можно
-            TokenType.T_HEX_STRING,
-            TokenType.T_IDENTIFIER,
-        ).cur_token.value
+        return self.expect_token(TokenType.T_SCALAR).cur_token.value
 
-    def quoted_identifier(self) -> str:
-        return self.expect_token(
-            TokenType.T_IDENTIFIER,
-            TokenType.T_DOUBLE_QUOTED_STRING,
-            TokenType.T_BACKTICK_STRING,
-            TokenType.T_HEX_STRING,
-        ).cur_token.value
+    def quoted_id(self) -> str:
+        return self.expect_token(TokenType.T_QUOTED_ID).cur_token.value
 
-    def table_identifier(self) -> str:
-        rv = self.quoted_identifier()
-        # table_space.table_name
+    def table_name(self) -> tuple[str, str]:
+        table_name = self.quoted_id()
+        table_schema = None
         if self.peek_token(TokenType.T_PERIOD):
-            rv += self.cur_token.value + self.quoted_identifier()
-        return rv
+            table_name, table_schema = self.quoted_id(), table_name
+        return table_name, table_schema
 
     def parse_insert(self) -> Iterable[InsertValues]:
         # INSERT INTO tbl (col1, col2) VALUES ('a', 1);
         logger.debug("parse insert values")
-        table_name = self.table_identifier()
-        logger.debug(f"{table_name=}")
+        table_name, schema = self.table_name()
+        logger.debug(f"{table_name=}; {schema=}")
         # имена колонок опциональны
         column_names = []
         if self.peek_token(TokenType.T_LPAREN):
             while True:
-                column_names.append(self.quoted_identifier())
+                column_names.append(self.quoted_id())
                 if self.peek_token(TokenType.T_RPAREN):
                     break
                 self.expect_token(TokenType.T_COMMA)
@@ -653,7 +652,10 @@ class DumpParser:
                 if self.peek_token(TokenType.T_RPAREN):
                     break
                 self.expect_token(TokenType.T_COMMA)
-            column_names = self.table_fields.get(table_name, column_names)
+            schema = schema or self.current_schema
+            column_names = self.table_fields[schema].get(
+                table_name, column_names
+            )
             if column_names:
                 if len(column_names) != len(values):
                     raise ParseError(
@@ -661,13 +663,14 @@ class DumpParser:
                     )
                 values = dict(zip(column_names, values))
             yield {
-                "table_name": table_name,
+                "table": table_name,
+                "schema": schema,
                 "values": values.copy(),
             }
             # counter += 1
             if self.peek_token(TokenType.T_COMMA):
                 continue
-            self.expect_token(TokenType.T_SEMICOLON)
+            self.expect_token(TokenType.T_SEMI)
             return
 
     def raise_eof(self) -> None:
@@ -681,33 +684,36 @@ class DumpParser:
         if self.peek_token(TokenType.T_IF):
             self.expect_token(TokenType.T_NOT)
             self.expect_token(TokenType.T_EXISTS)
-        table_name = self.table_identifier()
+        table_name, schema = self.table_name()
         logger.debug(f"{table_name=}")
         self.expect_token(TokenType.T_LPAREN)
         # помним, что в дампе может быть несколько таблиц с одинаковым именем
-        self.table_fields[table_name] = []
+        column_names = self.table_fields[schema or self.current_schema][
+            table_name
+        ] = []
         while True:
             # Я не все скорее всего перечислил ключевые слова для объявления индексов отдельно
             if not self.peek_token(
-                TokenType.T_CHECK,
-                TokenType.T_CONSTRAINT,
-                TokenType.T_FOREIGN,
-                TokenType.T_FULLTEXT,
-                TokenType.T_INDEX,
-                TokenType.T_KEY,
-                TokenType.T_PRIMARY,
-                TokenType.T_SPATIAL,
-                TokenType.T_UNIQUE,
+                TokenType.T_CHECK
+                | TokenType.T_CONSTRAINT
+                | TokenType.T_FOREIGN
+                | TokenType.T_FULLTEXT
+                | TokenType.T_INDEX
+                | TokenType.T_KEY
+                | TokenType.T_PRIMARY
+                | TokenType.T_SPATIAL
+                | TokenType.T_UNIQUE
             ):
-                column_name = self.quoted_identifier()
-                self.table_fields[table_name].append(column_name)
+                column_name = self.quoted_id()
+                column_names.append(column_name)
             # Формально синтаксис проверяем
             while not self.peek_token(TokenType.T_COMMA):
                 if self.peek_token(TokenType.T_RPAREN):
                     logger.debug(
-                        "%r: %r",
+                        "%r.%r: %r",
+                        schema,
                         table_name,
-                        self.table_fields[table_name],
+                        column_names,
                     )
                     return
                 # varchar(255) and etc
@@ -723,7 +729,7 @@ class DumpParser:
         self,
         source: typing.TextIO | str,
         *,
-        buffer_size: int = 8192,
+        buffer_size: int = 8_192,
         ignore_errors: bool = True,
     ) -> Iterable[InsertValues]:
         logger.debug("reading buffer size: %d bytes", buffer_size)
@@ -735,13 +741,27 @@ class DumpParser:
         self.next_token = Token(TokenType.T_EMPTY)
         # Сделает текущий пустым
         self.advance_token()
-        # Используем list так как важен порядок объявления колонок
-        # Я не учел, что можно объявить несколько таблиц с одинаковым именем в разных неймспейсах
-        # self.table_fields = defaultdict(list)
-        self.table_fields = {}
-        while not self.peek_token(TokenType.T_EOF, TokenType.T_EMPTY):
+        self.table_fields = defaultdict(dict)
+        self.current_schema = None
+        while not self.peek_token(TokenType.T_EOF | TokenType.T_EMPTY):
             try:
-                if self.peek_token(TokenType.T_CREATE):
+                # MySQL use database
+                if self.peek_token(TokenType.T_USE):
+                    self.current_schema = self.quoted_id()
+                    self.expect_token(TokenType.T_SEMI)
+                # Postgres change schema
+                # set search_path='public';
+                elif self.peek_token(TokenType.T_SET):
+                    if (
+                        self.peek_token(TokenType.T_QUOTED_ID)
+                        and self.cur_token.value == "search_path"
+                    ):
+                        if self.peek_token(TokenType.T_EQ):
+                            self.current_schema = self.expect_token(
+                                TokenType.T_QUOTED
+                            ).cur_token.value
+                            self.expect_token(TokenType.T_SEMI)
+                elif self.peek_token(TokenType.T_CREATE):
                     if self.peek_token(TokenType.T_TABLE):
                         self.parse_create_table()
                 elif self.peek_token(TokenType.T_INSERT):

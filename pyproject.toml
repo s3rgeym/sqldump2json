@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "sqldump2json"
-version = "0.3.6"
-description = "Parsing SQL Dumps to JSON Objects"
+version = "0.3.7"
+description = "Converts SQL dump to a JSON stream"
 authors = ["Sergey M"]
 license = "Free for Personal Use Only"
 readme = "README.md"

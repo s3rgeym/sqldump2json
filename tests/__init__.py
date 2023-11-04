@@ -16,30 +16,31 @@ class Test(unittest.TestCase):
     def setUp(self) -> None:
         self.parser = DumpParser()
 
-    def test_insert_values(self) -> None:
+    def test_base(self) -> None:
         sql = """
 Любые невалидные токены вне `CREATE TABLE` и INSERT игнориуются
 
-cReAte/**/taBLe users(
+cReAte/**/taBLe db.users(
     user_id int NOT NULL,
     username varchar(31) NOT NULL,
     password varchar(31) NOT NULL,
     PRIMARY KEY(user_id));
 
-insert into users values (1, 'tester', 'test123'),
+insert into db.users values (1, 'tester', 'test123'),
     (2, 'dummyuser', '123456');
 
 Тут проверяем многострочный комментарий, чтобы выражение внутри него не обработалось
 
 /*/insert into users values ('xxx')/*/
-INSERT INTO pages VALUES(NULL, "Hello World!", "Hello, world!");
+INSERT INTO db.pages VALUES(NULL, "Hello World!", "Hello, world!");
         """
         self.assertEqual(
             # Кинет ошибку парсиннга, если внутри CREATE и INSERT встретит неожиданные токены
             [*self.parser.parse(sql, ignore_errors=False)],
             [
                 {
-                    "table_name": "users",
+                    "table": "users",
+                    "schema": "db",
                     "values": {
                         "user_id": 1,
                         "username": "tester",
@@ -47,7 +48,8 @@ INSERT INTO pages VALUES(NULL, "Hello World!", "Hello, world!");
                     },
                 },
                 {
-                    "table_name": "users",
+                    "table": "users",
+                    "schema": "db",
                     "values": {
                         "user_id": 2,
                         "username": "dummyuser",
@@ -55,13 +57,14 @@ INSERT INTO pages VALUES(NULL, "Hello World!", "Hello, world!");
                     },
                 },
                 {
-                    "table_name": "pages",
+                    "table": "pages",
+                    "schema": "db",
                     "values": [None, "Hello World!", "Hello, world!"],
                 },
             ],
         )
 
-    def test_insert_values_so39216133(self) -> None:
+    def test_so39216133(self) -> None:
         sql = """
         DROP TABLE IF EXISTS `geo_tags`;
         /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -88,7 +91,8 @@ INSERT INTO pages VALUES(NULL, "Hello World!", "Hello, world!");
         self.assertEqual(
             next(self.parser.parse(sql)),
             {
-                "table_name": "geo_tags",
+                "table": "geo_tags",
+                "schema": None,
                 "values": {
                     "gt_country": None,
                     "gt_dim": 1000,
@@ -105,10 +109,10 @@ INSERT INTO pages VALUES(NULL, "Hello World!", "Hello, world!");
             },
         )
 
-    def test_hex_string2bytes(self) -> None:
+    def test_hex_bytes(self) -> None:
         with DUMP_FILE.open() as fp:
             for res in self.parser.parse(fp):
-                if res["table_name"] != "staff":
+                if res["table"] != "staff":
                     continue
                 first_name, last_name, _, img_data = res["values"][1:5]
                 # Там фотка этого васяна
