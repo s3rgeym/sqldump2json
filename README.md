@@ -86,7 +86,7 @@ Also supports basic arifmetic and boolean operations:
 
 ```bash
 $ echo 'insert into test (result) values (-2 + 2 * 2);' | sqldump2json
-{"table": "test", "schema": null, "values": {"result": 2}}
+{"table": "test", "values": {"result": 2}}
 ```
 
 ## Scripting
