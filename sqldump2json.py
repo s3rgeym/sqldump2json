@@ -785,6 +785,8 @@ class DumpParser:
 
         logger.info("finished")
 
+    __call__ = parse
+
 
 class NameSpace(argparse.Namespace):
     input: typing.TextIO
@@ -872,8 +874,8 @@ def main(argv: Sequence[str] | None = None) -> int | None:
     logger.addHandler(ColorHandler())
     if args.debug:
         logger.setLevel(logging.DEBUG)
-    parser = DumpParser()
     try:
+        parser = DumpParser()
         count_values = 0
         for data in map(
             skip_none,
