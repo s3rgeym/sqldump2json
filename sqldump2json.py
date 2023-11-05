@@ -161,10 +161,8 @@ class TokenType(IntFlag):
     T_SEMI = auto()
     T_VALUES = auto()
 
-    T_SCALAR = (
-        T_INT | T_FLOAT | T_BOOL | T_NULL | T_QUOTED | T_DOUBLE_QUOTED | T_HEX
-    )
-
+    T_STRING = T_QUOTED | T_DOUBLE_QUOTED   
+    T_SCALAR = T_INT | T_FLOAT | T_BOOL | T_NULL | T_STRING | T_HEX
     T_QUOTED_ID = T_BACTICK_QUOTED | T_DOUBLE_QUOTED | T_ID
 
     # Исп в CREATE
@@ -538,7 +536,7 @@ class DumpParser:
     tokenizer_class: Type = SQLTokenizer
 
     def advance_token(self) -> None:
-        self.cur_token, self.next_token = (
+        self.token, self.next_token = (
             self.next_token,
             # Этот пустой токен тупо костыль, но альтернативу ему я не придумал
             next(self.tokenizer_it, Token(TokenType.T_EMPTY)),
@@ -607,7 +605,7 @@ class DumpParser:
     def muldiv(self) -> Any:
         rv = self.primary()
         while self.peek_token(TokenType.T_MUL | TokenType.T_DIV):
-            if self.cur_token.type == TokenType.T_MUL:
+            if self.token.type == TokenType.T_MUL:
                 rv *= self.primary()
             else:
                 rv /= self.primary()
@@ -623,11 +621,12 @@ class DumpParser:
             return rv
         if self.peek_token(TokenType.T_ID):
             return None
-        return self.expect_token(TokenType.T_SCALAR).cur_token.value
+        return self.expect_token(TokenType.T_SCALAR).token.value
 
     def quoted_id(self) -> str:
-        return self.expect_token(TokenType.T_QUOTED_ID).cur_token.value
+        return self.expect_token(TokenType.T_QUOTED_ID).token.value
 
+    # Это неправильно
     def table_name(self) -> tuple[str, str]:
         table_name = self.quoted_id()
         table_schema = None
@@ -760,12 +759,14 @@ class DumpParser:
                 # set search_path='public';
                 elif self.peek_token(TokenType.T_SET):
                     # TODO: посмотреть какой синтаксис правильный
-                    if self.peek_token(TokenType.T_ID, "search_path"):
-                        if self.peek_token(TokenType.T_EQ | TokenType.T_TO):
-                            self.current_schema = self.expect_token(
-                                TokenType.T_QUOTED
-                            ).cur_token.value
-                            self.expect_token(TokenType.T_SEMI)
+                    if (
+                        self.peek_token(TokenType.T_QUOTED_ID, "search_path") and 
+                        self.peek_token(TokenType.T_EQ | TokenType.T_TO)
+                    ):
+                        self.current_schema = self.expect_token(
+                            TokenType.T_STRING
+                        ).token.value
+                        self.expect_token(TokenType.T_SEMI)
                 elif self.peek_token(TokenType.T_CREATE):
                     if self.peek_token(TokenType.T_TABLE):
                         self.parse_create_table()
