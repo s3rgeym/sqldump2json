@@ -14,7 +14,6 @@ import dataclasses
 import functools
 import io
 import itertools
-import json
 import logging
 import os
 import re
@@ -26,6 +25,11 @@ from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum, IntFlag, auto
 from typing import Any, Iterable, Self, Sequence, Type, TypedDict
+
+try:
+    import ujson as json
+except ImportError:
+    import json
 
 __author__ = "Sergey M"
 
@@ -136,14 +140,14 @@ class TokenType(IntFlag):
     T_DOUBLE_QUOTED = auto()
     T_EOF = auto()
     T_EQ = auto()
-    T_FLOAT = auto()
+    #T_FLOAT = auto()
     T_FROM = auto()
     T_GT = auto()  # greater than
     T_GTE = auto()  # greater than or equal
     T_HEX = auto()
     T_ID = auto()
     T_INSERT = auto()
-    T_INT = auto()
+    #T_INT = auto()
     T_INTO = auto()
     T_LPAREN = auto()
     T_LT = auto()  # less than
@@ -152,6 +156,7 @@ class TokenType(IntFlag):
     T_MUL = auto()
     T_NE = auto()
     T_NULL = auto()
+    T_NUMBER = auto()
     T_OR = auto()
     T_PERIOD = auto()
     T_PLUS = auto()
@@ -161,8 +166,8 @@ class TokenType(IntFlag):
     T_SEMI = auto()
     T_VALUES = auto()
 
-    T_STRING = T_QUOTED | T_DOUBLE_QUOTED   
-    T_SCALAR = T_INT | T_FLOAT | T_BOOL | T_NULL | T_STRING | T_HEX
+    T_STRING = T_QUOTED | T_DOUBLE_QUOTED | T_HEX
+    T_SCALAR = T_NUMBER | T_BOOL | T_NULL | T_STRING
     T_QUOTED_ID = T_BACTICK_QUOTED | T_DOUBLE_QUOTED | T_ID
 
     # Исп в CREATE
@@ -436,10 +441,9 @@ class SQLTokenizer:
             ):
                 self.advance()
                 val += self.ch
+            val = float(val) if self.PERIOD_CHAR in val else int(val)
             return (
-                self.token(TokenType.T_FLOAT, float(val))
-                if self.PERIOD_CHAR in val
-                else self.token(TokenType.T_INT, int(val))
+                self.token(TokenType.NUMBER, val)
             )
         # строки с разными типами кавычек
         for quote_char, token_type in [
@@ -628,11 +632,10 @@ class DumpParser:
 
     # Это неправильно
     def table_name(self) -> tuple[str, str]:
-        table_name = self.quoted_id()
-        table_schema = None
+        ident = self.quoted_id()
         if self.peek_token(TokenType.T_PERIOD):
-            table_name, table_schema = self.quoted_id(), table_name
-        return table_name, table_schema
+            return self.quoted_id(), ident
+        return ident, None
 
     def parse_insert(self) -> Iterable[InsertValues]:
         # INSERT INTO tbl (col1, col2) VALUES ('a', 1);
