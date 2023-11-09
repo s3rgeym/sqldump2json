@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "sqldump2json"
-version = "1.0.1"
+version = "1.0.2"
 description = "Converts SQL dump to a JSON stream"
 authors = ["Sergey M"]
 license = "Free for Personal Use Only"
@@ -9,6 +9,7 @@ repository = "https://github.com/s3rgeym/sqldump2json"
 
 [tool.poetry.dependencies]
 python = "^3.11"
+orjson = "^3.9.10"
 
 [build-system]
 requires = ["poetry-core"]
