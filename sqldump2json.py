@@ -165,7 +165,7 @@ class TokenType(IntFlag):
 
     T_STRING = T_QUOTED | T_DOUBLE_QUOTED | T_HEX
     T_SCALAR = T_NUMBER | T_BOOL | T_NULL | T_STRING
-    T_QUOTED_ID = T_BACTICK_QUOTED | T_DOUBLE_QUOTED | T_ID
+    T_QUOTED_ID = T_STRING | T_ID
 
     # Исп в CREATE
     # https://www.postgresql.org/docs/current/ddl-constraints.html
