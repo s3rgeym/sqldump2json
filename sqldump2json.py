@@ -162,10 +162,11 @@ class TokenType(IntFlag):
     T_RPAREN = auto()
     T_SEMI = auto()
     T_VALUES = auto()
-
     T_STRING = T_QUOTED | T_DOUBLE_QUOTED | T_HEX
     T_SCALAR = T_NUMBER | T_BOOL | T_NULL | T_STRING
-    T_QUOTED_ID = T_STRING | T_ID
+    # https://docs.jboss.org/author/display/TEIID/BNF%20for%20SQL%20Grammar.html#18646304_BNFforSQLGrammar-tokenQUOTEDID
+    # `mytable` используется в MySQL/Persona/MariaDB
+    T_QUOTED_ID = T_BACTICK_QUOTED | T_DOUBLE_QUOTED | T_ID
 
     # Исп в CREATE
     # https://www.postgresql.org/docs/current/ddl-constraints.html
