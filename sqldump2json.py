@@ -710,7 +710,7 @@ class DumpParser:
             ):
                 column_name = self.quoted_id()
                 column_names.append(column_name)
-            # Формально синтаксис проверяем
+            # Должно быть примерно похоже. Как надо — сложно
             while not self.peek_token(TokenType.T_COMMA):
                 if self.peek_token(TokenType.T_RPAREN):
                     logger.debug(
