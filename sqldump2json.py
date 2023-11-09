@@ -26,10 +26,7 @@ from dataclasses import dataclass
 from enum import Enum, IntFlag, auto
 from typing import Any, Iterable, Self, Sequence, Type, TypedDict
 
-try:
-    import ujson as json
-except ImportError:
-    import json
+import orjson
 
 __author__ = "Sergey M"
 
@@ -140,14 +137,14 @@ class TokenType(IntFlag):
     T_DOUBLE_QUOTED = auto()
     T_EOF = auto()
     T_EQ = auto()
-    #T_FLOAT = auto()
+    # T_FLOAT = auto()
     T_FROM = auto()
     T_GT = auto()  # greater than
     T_GTE = auto()  # greater than or equal
     T_HEX = auto()
     T_ID = auto()
     T_INSERT = auto()
-    #T_INT = auto()
+    # T_INT = auto()
     T_INTO = auto()
     T_LPAREN = auto()
     T_LT = auto()  # less than
@@ -259,10 +256,10 @@ class SQLTokenizer:
     BACKTICK_CHAR = "`"
     DOUBLE_QUOTE_CHAR = '"'
     ESCAPE_CHAR = "\\"
-    HEX_CHAR = string.hexdigits
+    HEX_CHARS = string.hexdigits
     MINUS_CHAR = "-"
-    ID_FIRST_CHAR = "@" + string.ascii_letters + "_"
-    ID_CHAR = ID_FIRST_CHAR + string.digits
+    ID_FIRST_CHARS = "#@" + string.ascii_letters + "_"
+    ID_CHARS = ID_FIRST_CHARS + string.digits
     NEWLINE_CHAR = "\n"
     PERIOD_CHAR = "."
     QUOTE_CHAR = "'"
@@ -370,9 +367,9 @@ class SQLTokenizer:
                     break
             return self.next_token()
         # идентефикаторы, константы, операторы и ключевые слова
-        if self.ch in self.ID_FIRST_CHAR:
+        if self.ch in self.ID_FIRST_CHARS:
             val = self.ch
-            while self.peek_ch in self.ID_CHAR:
+            while self.peek_ch in self.ID_CHARS:
                 self.advance()
                 val += self.ch
             upper = val.upper()
@@ -412,7 +409,7 @@ class SQLTokenizer:
         if self.ch == "0" and self.peek_ch.lower() == "x":
             val = ""
             self.advance()
-            while self.peek_ch in self.HEX_CHAR:
+            while self.peek_ch in self.HEX_CHARS:
                 self.advance()
                 val += self.ch.upper()
                 # hex-строки могут разбиваться
@@ -442,9 +439,7 @@ class SQLTokenizer:
                 self.advance()
                 val += self.ch
             val = float(val) if self.PERIOD_CHAR in val else int(val)
-            return (
-                self.token(TokenType.NUMBER, val)
-            )
+            return self.token(TokenType.T_NUMBER, val)
         # строки с разными типами кавычек
         for quote_char, token_type in [
             (self.QUOTE_CHAR, TokenType.T_QUOTED),
@@ -659,7 +654,7 @@ class DumpParser:
                 if self.peek_token(TokenType.T_RPAREN):
                     break
                 self.expect_token(TokenType.T_COMMA)
-            table_schema = table_schema or self.current_schema
+            table_schema = table_schema or self.table_schema
             column_names = self.table_fields[table_schema].get(
                 table_name,
                 column_names,
@@ -696,7 +691,7 @@ class DumpParser:
         logger.debug(f"{table_name=}")
         self.expect_token(TokenType.T_LPAREN)
         # помним, что в дампе может быть несколько таблиц с одинаковым именем
-        column_names = self.table_fields[schema or self.current_schema][
+        column_names = self.table_fields[schema or self.table_schema][
             table_name
         ] = []
         while True:
@@ -750,23 +745,22 @@ class DumpParser:
         # Сделает текущий пустым
         self.advance_token()
         self.table_fields = defaultdict(dict)
-        self.current_schema = None
+        self.table_schema = None
         while not self.peek_token(TokenType.T_EOF | TokenType.T_EMPTY):
             try:
                 # MySQL, SQL Server
                 # use database
                 if self.peek_token(TokenType.T_USE):
-                    self.current_schema = self.quoted_id()
+                    self.table_schema = self.quoted_id()
                     self.expect_token(TokenType.T_SEMI)
                 # PostgreSQL
                 # set search_path='public';
                 elif self.peek_token(TokenType.T_SET):
                     # TODO: посмотреть какой синтаксис правильный
-                    if (
-                        self.peek_token(TokenType.T_QUOTED_ID, "search_path") and 
-                        self.peek_token(TokenType.T_EQ | TokenType.T_TO)
-                    ):
-                        self.current_schema = self.expect_token(
+                    if self.peek_token(
+                        TokenType.T_QUOTED_ID, "search_path"
+                    ) and self.peek_token(TokenType.T_EQ | TokenType.T_TO):
+                        self.table_schema = self.expect_token(
                             TokenType.T_STRING
                         ).token.value
                         self.expect_token(TokenType.T_SEMI)
@@ -877,7 +871,7 @@ def main(argv: Sequence[str] | None = None) -> int | None:
     try:
         parser = DumpParser()
         count_values = 0
-        for data in map(
+        for item in map(
             skip_none,
             parser.parse(
                 source=args.input,
@@ -885,28 +879,23 @@ def main(argv: Sequence[str] | None = None) -> int | None:
                 ignore_errors=not args.fail_on_error,
             ),
         ):
-            json.dump(
-                data,
-                fp=args.output,
-                ensure_ascii=False,
-                cls=Base64Encoder,
-            )
+            data = orjson.dumps(item, default=default_json)
+            args.output.write(data.decode())
             args.output.write(os.linesep)
             args.output.flush()
             count_values += 1
         logger.info("Total values in %r: %d", args.input.name, count_values)
     except Exception as ex:
-        logger.fatal(ex)
+        logger.exception(ex)
         return 1
     except KeyboardInterrupt:
         logger.warning("Aborted")
 
 
-class Base64Encoder(json.JSONEncoder):
-    def default(self, o: Any) -> str:
-        if isinstance(o, bytes):
-            return b64encode(o).decode()
-        return super().default(self, o)
+def default_json(o: Any) -> str:
+    if isinstance(o, bytes):
+        return b64encode(o).decode()
+    raise TypeError
 
 
 if __name__ == "__main__":
