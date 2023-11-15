@@ -38,14 +38,15 @@ def default_json(o: Any) -> str:
 try:
     import orjson
 
-    def encode_json(obj: Any, fp: typing.TextIO) -> None:
+    def dump_json(obj: Any, fp: io.TextIOBase) -> None:
         data = orjson.dumps(obj, default=default_json)
-        fp.write(data.decode())
+        # fp.write(data.decode())
+        fp.buffer.write(data)
 
 except ImportError:
     import json
 
-    encode_json = functools.partial(
+    dump_json = functools.partial(
         json.dump, ensure_ascii=True, default=default_json
     )
 
@@ -889,17 +890,17 @@ def main(argv: Sequence[str] | None = None) -> int | None:
     if args.debug:
         logger.setLevel(logging.DEBUG)
     try:
-        dump_parse = DumpParser()
+        parse = DumpParser()
         count_values = 0
         for item in map(
             skip_none,
-            dump_parse(
+            parse(
                 source=args.input,
                 buffer_size=args.buffer_size,
                 ignore_errors=not args.fail_on_error,
             ),
         ):
-            encode_json(item, args.output)
+            dump_json(item, args.output)
             args.output.write(os.linesep)
             args.output.flush()
             count_values += 1
