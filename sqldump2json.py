@@ -26,9 +26,28 @@ from dataclasses import dataclass
 from enum import Enum, IntFlag, auto
 from typing import Any, Iterable, Self, Sequence, Type, TypedDict
 
-import orjson
-
 __author__ = "Sergey M"
+
+
+def default_json(o: Any) -> str:
+    if isinstance(o, bytes):
+        return b64encode(o).decode()
+    raise TypeError
+
+
+try:
+    import orjson
+
+    def encode_json(obj: Any, fp: typing.TextIO) -> None:
+        data = orjson.dumps(obj, default=default_json)
+        fp.write(data.decode())
+
+except ImportError:
+    import json
+
+    encode_json = functools.partial(
+        json.dump, ensure_ascii=True, default=default_json
+    )
 
 
 class Color(Enum):
@@ -710,7 +729,7 @@ class DumpParser:
             ):
                 column_name = self.quoted_id()
                 column_names.append(column_name)
-            # Должно быть примерно похоже. Как надо — сложно
+            # Проверяем формальную правильность синтаксиса
             while not self.peek_token(TokenType.T_COMMA):
                 if self.peek_token(TokenType.T_RPAREN):
                     logger.debug(
@@ -870,18 +889,17 @@ def main(argv: Sequence[str] | None = None) -> int | None:
     if args.debug:
         logger.setLevel(logging.DEBUG)
     try:
-        parser = DumpParser()
+        dump_parse = DumpParser()
         count_values = 0
         for item in map(
             skip_none,
-            parser.parse(
+            dump_parse(
                 source=args.input,
                 buffer_size=args.buffer_size,
                 ignore_errors=not args.fail_on_error,
             ),
         ):
-            data = orjson.dumps(item, default=default_json)
-            args.output.write(data.decode())
+            encode_json(item, args.output)
             args.output.write(os.linesep)
             args.output.flush()
             count_values += 1
@@ -891,12 +909,6 @@ def main(argv: Sequence[str] | None = None) -> int | None:
         return 1
     except KeyboardInterrupt:
         logger.warning("Aborted")
-
-
-def default_json(o: Any) -> str:
-    if isinstance(o, bytes):
-        return b64encode(o).decode()
-    raise TypeError
 
 
 if __name__ == "__main__":
