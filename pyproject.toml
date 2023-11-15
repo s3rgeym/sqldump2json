@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "sqldump2json"
-version = "1.0.2"
+version = "1.0.3"
 description = "Converts SQL dump to a JSON stream"
 authors = ["Sergey M"]
 license = "Free for Personal Use Only"
