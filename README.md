@@ -4,7 +4,7 @@
 
 Converts SQL dump to a JSON stream.
 
-A tool for administrators, data scientists and hackers. With this tool you no longer need to import dumps into Databases. You can extract INSERT data as JSON and analyze them with [jq](https://github.com/jqlang/jq) or insert into MongoDB/Elastic/etc. The dump is not read entirely into RAM, so this utility can be used to process files of any size. And it can even parse corrupted dumps.
+A tool for administrators, data scientists and hackers. With this tool you no longer need to import dumps into Databases. You can extract INSERT data as JSON and analyze them with [jq](https://github.com/jqlang/jq) or insert into MongoDB/Elastic/etc. The dump is not read entirely into RAM, so this utility can be used to process files of any size. And it can even parse corrupted dumps. No dependencies!
 
 Supported DBMS: MySQL, SQL Server, PotsgreSQL and some other (not all formats).
 
@@ -91,9 +91,9 @@ If you were looking for a way how to import data from SQL to NoSQL databases and
 from sqldump2json import DumpParser
 ...
 if __name__ == '__main__':
-    parser = DumpParser()
-    for item in parser.parse("/path/to/dump.sql"):
-        do_something(item)
+    parse = DumpParser()
+    for val in parse("/path/to/dump.sql"):
+        do_something(val)
 ```
 
 ## Development
@@ -101,7 +101,7 @@ if __name__ == '__main__':
 Run tests:
 
 ```bash
-poetry run python -m unittest
+poetry run python -m uniзщttest
 ```
 
 ## TODO LIST
@@ -113,4 +113,4 @@ poetry run python -m unittest
 
 После создания этого пакета я случайно узнал про существование [sqldump-to](https://github.com/arjunmehta/sqldump-to). Тот проект заброшен, и та утилита НЕ МОЖЕТ ПАРСИТЬ ДАМПЫ ПО 100500 ГИГАБАЙТ.
 
-С помощью `orjson` удалось ускорить сериализацию объектов в 10 раз. Если ранее обрабатывалось примерно 10.000 объектов в секунду...
+Я пробовал ускорить парсинг с помощью orjson (реализован на говнорасте и отвечает за парсинг JSON), но вопреки заявленному ускорению в 10 раз, получил замедление при парсинге 23-гигового дампа, содержащего 160 миллинов вставок, с 5 часов до 7.
