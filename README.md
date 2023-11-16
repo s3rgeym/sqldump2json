@@ -108,6 +108,7 @@ poetry run python -m uniзщttest
 
 - Add support [mysql strings with charset](https://dev.mysql.com/doc/refman/8.0/en/charset-introducer.html) (eg, `_binary '\x00...'`). + `X'...'`
 - Строки должны конкатенироваться, если идут подряд.
+- Ускорить парсинг.
 
 ## Notes
 
