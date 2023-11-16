@@ -36,6 +36,7 @@ def default_json(o: Any) -> str:
 
 
 try:
+    # Не оправдал ожиданий
     import orjson
 
     def dump_json(obj: Any, fp: io.TextIOBase) -> None:
