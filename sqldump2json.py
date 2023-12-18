@@ -892,20 +892,19 @@ def main(argv: Sequence[str] | None = None) -> int | None:
         logger.setLevel(logging.DEBUG)
     try:
         parse = DumpParser()
-        count_values = 0
-        for item in map(
+        count = 0
+        for count, item in enumerate(map(
             skip_none,
             parse(
                 source=args.input,
                 buffer_size=args.buffer_size,
                 ignore_errors=not args.fail_on_error,
             ),
-        ):
+        ), 1):
             dump_json(item, args.output)
             args.output.write(os.linesep)
             args.output.flush()
-            count_values += 1
-        logger.info("Total values in %r: %d", args.input.name, count_values)
+        logger.info("Total values in %r: %d", args.input.name, count)
     except Exception as ex:
         logger.exception(ex)
         return 1
