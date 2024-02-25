@@ -101,7 +101,7 @@ if __name__ == '__main__':
 Run tests:
 
 ```bash
-poetry run python -m uniзщttest
+poetry run python -m unittest
 ```
 
 ## TODO LIST
