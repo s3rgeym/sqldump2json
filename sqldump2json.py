@@ -586,7 +586,8 @@ class DumpParser:
     def expr(self) -> Any:
         rv = self.AND()
         while self.peek_token(TokenType.T_OR):
-            rv = rv or self.AND()
+            x = self.AND()
+            rv = rv or x
         return rv
 
     def AND(self) -> Any:
